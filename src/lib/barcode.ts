@@ -1,4 +1,5 @@
 import type { NutritionFacts } from './analysis';
+import { parseIngredients } from './analysis';
 
 export interface OpenFoodFactsProduct {
   product_name?: string;
@@ -12,6 +13,7 @@ export interface OpenFoodFactsProduct {
   nutriments?: Record<string, number>;
   serving_size?: string;
   nutriscore_grade?: string;
+  code?: string;
 }
 
 export interface OpenFoodFactsResponse {
@@ -34,8 +36,177 @@ export interface ProductLookupResult {
   found: boolean;
 }
 
-export async function lookupBarcode(barcode: string): Promise<ProductLookupResult> {
+function round(value: number, decimals = 1): number {
+  const multiplier = 10 ** decimals;
+  return Math.round(value * multiplier) / multiplier;
+}
+
+function getNumber(
+  data: Record<string, number>,
+  keys: string[]
+): number | undefined {
+  for (const key of keys) {
+    if (data[key] != null && Number.isFinite(data[key])) {
+      return data[key];
+    }
+  }
+
+  return undefined;
+}
+
+function getNutrition(
+  nutriments: Record<string, number>
+): NutritionFacts {
+  const calories = getNumber(nutriments, [
+    'energy-kcal_100g',
+    'energy-kcal',
+  ]);
+
+  const energyKj = getNumber(nutriments, [
+    'energy_100g',
+    'energy-kj_100g',
+  ]);
+
+  const protein = getNumber(nutriments, [
+    'proteins_100g',
+    'protein_100g',
+  ]);
+
+  const fat = getNumber(nutriments, [
+    'fat_100g',
+  ]);
+
+  const saturatedFat = getNumber(nutriments, [
+    'saturated-fat_100g',
+  ]);
+
+  const transFat = getNumber(nutriments, [
+    'trans-fat_100g',
+  ]);
+
+  const sugar = getNumber(nutriments, [
+    'sugars_100g',
+    'sugar_100g',
+  ]);
+
+  const addedSugar = getNumber(nutriments, [
+    'added-sugars_100g',
+    'added-sugar_100g',
+  ]);
+
+  const sodiumGrams = getNumber(nutriments, [
+    'sodium_100g',
+  ]);
+
+  const fiber = getNumber(nutriments, [
+    'fiber_100g',
+  ]);
+
+  const cholesterolGrams = getNumber(nutriments, [
+    'cholesterol_100g',
+  ]);
+
+  const carbs = getNumber(nutriments, [
+    'carbohydrates_100g',
+    'carbohydrate_100g',
+  ]);
+
+  let finalCalories: number | undefined;
+
+  if (calories != null) {
+    finalCalories = Math.round(calories);
+  } else if (energyKj != null) {
+    finalCalories = Math.round(energyKj / 4.184);
+  }
+
+  return {
+    calories: finalCalories,
+
+    protein:
+      protein != null
+        ? round(protein)
+        : undefined,
+
+    fat:
+      fat != null
+        ? round(fat)
+        : undefined,
+
+    saturatedFat:
+      saturatedFat != null
+        ? round(saturatedFat)
+        : undefined,
+
+    transFat:
+      transFat != null
+        ? round(transFat)
+        : undefined,
+
+    sugar:
+      sugar != null
+        ? round(sugar)
+        : undefined,
+
+    addedSugar:
+      addedSugar != null
+        ? round(addedSugar)
+        : undefined,
+
+    sodium:
+      sodiumGrams != null
+        ? Math.round(sodiumGrams * 1000)
+        : undefined,
+
+    fiber:
+      fiber != null
+        ? round(fiber)
+        : undefined,
+
+    cholesterol:
+      cholesterolGrams != null
+        ? Math.round(cholesterolGrams * 1000)
+        : undefined,
+
+    carbs:
+      carbs != null
+        ? round(carbs)
+        : undefined,
+  };
+}
+
+function parseAllergens(raw: string): string[] {
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(',')
+    .map((item) =>
+      item
+        .replace(/^en:/i, '')
+        .trim()
+        .toLowerCase()
+    )
+    .filter(Boolean);
+}
+
+function parseAdditives(tags: string[]): string[] {
+  return tags
+    .map((tag) =>
+      tag
+        .replace(/^en:/i, '')
+        .replace(/^additives:/i, '')
+        .replace(/-/g, ' ')
+        .trim()
+    )
+    .filter(Boolean);
+}
+
+export async function lookupBarcode(
+  barcode: string
+): Promise<ProductLookupResult> {
   const cleanBarcode = barcode.trim();
+
   const fallback: ProductLookupResult = {
     barcode: cleanBarcode,
     productName: 'Unknown Product',
@@ -50,59 +221,90 @@ export async function lookupBarcode(barcode: string): Promise<ProductLookupResul
     found: false,
   };
 
+  if (!cleanBarcode) {
+    return fallback;
+  }
+
   try {
-    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${cleanBarcode}.json`);
-    if (!res.ok) return fallback;
-    const data: OpenFoodFactsResponse = await res.json();
-    if (!data.product || data.status !== 1) return fallback;
+    const url =
+      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(cleanBarcode)}.json` +
+      '?fields=code,product_name,brands,categories,image_url,image_front_url,ingredients_text,allergens,additives_tags,nutriments,serving_size,nutriscore_grade';
 
-    const p = data.product;
-    const n = p.nutriments ?? {};
+    const res = await fetch(url);
 
-    const nutrition: NutritionFacts = {
-      calories: n['energy-kcal_100g'] ?? n['energy-kcal'] ?? n['energy_100g'] ? Math.round((n['energy-kcal_100g'] ?? n['energy-kcal'] ?? 0)) : undefined,
-      protein: n['proteins_100g'] != null ? Math.round(n['proteins_100g'] * 10) / 10 : undefined,
-      fat: n['fat_100g'] != null ? Math.round(n['fat_100g'] * 10) / 10 : undefined,
-      saturatedFat: n['saturated-fat_100g'] != null ? Math.round(n['saturated-fat_100g'] * 10) / 10 : undefined,
-      transFat: n['trans-fat_100g'] != null ? Math.round(n['trans-fat_100g'] * 10) / 10 : undefined,
-      sugar: n['sugars_100g'] != null ? Math.round(n['sugars_100g'] * 10) / 10 : undefined,
-      sodium: n['sodium_100g'] != null ? Math.round(n['sodium_100g'] * 10) / 10 : undefined,
-      fiber: n['fiber_100g'] != null ? Math.round(n['fiber_100g'] * 10) / 10 : undefined,
-      cholesterol: n['cholesterol_100g'] != null ? Math.round(n['cholesterol_100g'] * 10) / 10 : undefined,
-      carbs: n['carbohydrates_100g'] != null ? Math.round(n['carbohydrates_100g'] * 10) / 10 : undefined,
-    };
-
-    if (nutrition.calories == null && n['energy_100g'] != null) {
-      nutrition.calories = Math.round(n['energy_100g'] / 4.184);
+    if (!res.ok) {
+      return fallback;
     }
 
-    const ingredients = (p.ingredients_text ?? '')
-      .split(/[,;().]/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 1 && s.length < 60);
+    const data: OpenFoodFactsResponse =
+      await res.json();
 
-    const allergens = (p.allergens ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
+    if (
+      data.status !== 1 ||
+      !data.product
+    ) {
+      return fallback;
+    }
 
-    const additives = (p.additives_tags ?? []).map((t) => t.replace('en:', '').replace(/-/g, ' '));
+    const product = data.product;
+    const nutriments = product.nutriments ?? {};
+
+    const ingredients = parseIngredients(
+      product.ingredients_text ?? ''
+    );
+
+    const nutrition = getNutrition(
+      nutriments
+    );
+
+    const allergens = parseAllergens(
+      product.allergens ?? ''
+    );
+
+    const additives = parseAdditives(
+      product.additives_tags ?? []
+    );
 
     return {
       barcode: cleanBarcode,
-      productName: p.product_name ?? 'Unknown Product',
-      brand: p.brands ?? '',
-      category: p.categories ?? '',
-      imageUrl: p.image_front_url ?? p.image_url ?? '',
+
+      productName:
+        product.product_name?.trim() ||
+        'Unknown Product',
+
+      brand:
+        product.brands?.trim() || '',
+
+      category:
+        product.categories?.trim() || '',
+
+      imageUrl:
+        product.image_front_url ||
+        product.image_url ||
+        '',
+
       ingredients,
+
       nutrition,
+
       allergens,
+
       additives,
-      servingSize: p.serving_size ?? '',
-      nutriscoreGrade: p.nutriscore_grade,
+
+      servingSize:
+        product.serving_size?.trim() || '',
+
+      nutriscoreGrade:
+        product.nutriscore_grade,
+
       found: true,
     };
-  } catch {
+  } catch (error) {
+    console.error(
+      'Open Food Facts lookup error:',
+      error
+    );
+
     return fallback;
   }
 }
@@ -117,35 +319,86 @@ export interface SearchResult {
   nutriscoreGrade?: string;
 }
 
-export async function searchProducts(query: string): Promise<SearchResult[]> {
+export async function searchProducts(
+  query: string
+): Promise<SearchResult[]> {
+  if (!query.trim()) {
+    return [];
+  }
+
   try {
-    const res = await fetch(
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=20`
-    );
-    if (!res.ok) return [];
+    const url =
+      'https://world.openfoodfacts.org/cgi/search.pl' +
+      `?search_terms=${encodeURIComponent(query)}` +
+      '&search_simple=1' +
+      '&action=process' +
+      '&json=1' +
+      '&page_size=20';
+
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      return [];
+    }
+
     const data = await res.json();
-    if (!data.products) return [];
-    return data.products.slice(0, 20).map((p: OpenFoodFactsProduct & { code?: string; nutriments?: Record<string, number> }) => {
-      const n = p.nutriments ?? {};
-      return {
-        barcode: p.code ?? '',
-        productName: p.product_name ?? 'Unknown',
-        brand: p.brands ?? '',
-        category: p.categories ?? '',
-        imageUrl: p.image_front_url ?? p.image_url ?? '',
-        nutriscoreGrade: p.nutriscore_grade,
-        nutrition: {
-          calories: n['energy-kcal_100g'] != null ? Math.round(n['energy-kcal_100g']) : undefined,
-          protein: n['proteins_100g'] != null ? Math.round(n['proteins_100g'] * 10) / 10 : undefined,
-          fat: n['fat_100g'] != null ? Math.round(n['fat_100g'] * 10) / 10 : undefined,
-          saturatedFat: n['saturated-fat_100g'] != null ? Math.round(n['saturated-fat_100g'] * 10) / 10 : undefined,
-          sugar: n['sugars_100g'] != null ? Math.round(n['sugars_100g'] * 10) / 10 : undefined,
-          sodium: n['sodium_100g'] != null ? Math.round(n['sodium_100g'] * 10) / 10 : undefined,
-          fiber: n['fiber_100g'] != null ? Math.round(n['fiber_100g'] * 10) / 10 : undefined,
-        },
-      };
-    });
-  } catch {
+
+    if (
+      !data.products ||
+      !Array.isArray(data.products)
+    ) {
+      return [];
+    }
+
+    return data.products
+      .slice(0, 20)
+      .map(
+        (
+          product: OpenFoodFactsProduct
+        ): SearchResult => {
+          const nutriments =
+            product.nutriments ?? {};
+
+          return {
+            barcode:
+              product.code ?? '',
+
+            productName:
+              product.product_name ??
+              'Unknown',
+
+            brand:
+              product.brands ?? '',
+
+            category:
+              product.categories ?? '',
+
+            imageUrl:
+              product.image_front_url ??
+              product.image_url ??
+              '',
+
+            nutriscoreGrade:
+              product.nutriscore_grade,
+
+            nutrition:
+              getNutrition(
+                nutriments
+              ),
+          };
+        }
+      )
+      .filter(
+        (product: SearchResult) =>
+          product.productName !== 'Unknown' ||
+          product.barcode !== ''
+      );
+  } catch (error) {
+    console.error(
+      'Product search error:',
+      error
+    );
+
     return [];
   }
 }
