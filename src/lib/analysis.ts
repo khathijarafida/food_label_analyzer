@@ -1,4 +1,7 @@
-export type IngredientClass = 'safe' | 'moderate' | 'harmful';
+export type IngredientClass =
+  | 'safe'
+  | 'moderate'
+  | 'harmful';
 
 export interface IngredientInfo {
   name: string;
@@ -31,288 +34,864 @@ export interface AnalysisResult {
   ingredientAnalysis: IngredientInfo[];
   allergens: string[];
   additives: string[];
-  recommendations: Record<string, { suitable: boolean; reason: string }>;
+  recommendations: Record<
+    string,
+    {
+      suitable: boolean;
+      reason: string;
+    }
+  >;
   warnings: string[];
   positives: string[];
-  scoreBreakdown: { label: string; points: number; max: number }[];
+  scoreBreakdown: {
+    label: string;
+    points: number;
+    max: number;
+  }[];
 }
 
 export const ALLERGENS = [
-  'milk', 'egg', 'soy', 'gluten', 'wheat', 'peanut', 'tree nut', 'tree nuts',
-  'shellfish', 'fish', 'sesame', 'mustard', 'celery', 'sulphite', 'lupin',
+  'milk',
+  'egg',
+  'soy',
+  'gluten',
+  'wheat',
+  'peanut',
+  'tree nut',
+  'tree nuts',
+  'shellfish',
+  'fish',
+  'sesame',
+  'mustard',
+  'celery',
+  'sulphite',
+  'lupin',
 ] as const;
 
-const ALLERGEN_ALIASES: Record<string, string[]> = {
-  milk: ['milk', 'cream', 'butter', 'cheese', 'whey', 'casein', 'lactose', 'ghee', 'milk powder', 'skim milk', 'milkfat'],
-  egg: ['egg', 'albumin', 'ovalbumin', 'mayonnaise', 'eggnog', 'egg white', 'egg yolk', 'lecithin'],
-  soy: ['soy', 'soya', 'soybean', 'tofu', 'tempeh', 'edamame', 'soy sauce', 'soy lecithin'],
-  gluten: ['wheat', 'gluten', 'barley', 'rye', 'spelt', 'semolina', 'durum', 'farro', 'couscous', 'bread', 'flour'],
-  peanut: ['peanut', 'groundnut', 'arachis'],
-  'tree nuts': ['almond', 'cashew', 'walnut', 'pecan', 'hazelnut', 'pistachio', 'brazil nut', 'macadamia', 'pine nut'],
-  shellfish: ['shrimp', 'prawn', 'crab', 'lobster', 'crayfish', 'scampi'],
-  fish: ['fish', 'tuna', 'salmon', 'cod', 'mackerel', 'sardine', 'anchovy', 'tilapia', 'halibut'],
-  sesame: ['sesame', 'sesame oil', 'tahini', 'sesamum'],
+const ALLERGEN_ALIASES: Record<
+  string,
+  string[]
+> = {
+  milk: [
+    'milk',
+    'cream',
+    'butter',
+    'cheese',
+    'whey',
+    'casein',
+    'lactose',
+    'ghee',
+    'milk powder',
+    'skim milk',
+    'milkfat',
+  ],
+
+  egg: [
+    'egg',
+    'albumin',
+    'ovalbumin',
+    'mayonnaise',
+    'eggnog',
+    'egg white',
+    'egg yolk',
+  ],
+
+  soy: [
+    'soy',
+    'soya',
+    'soybean',
+    'tofu',
+    'tempeh',
+    'edamame',
+    'soy sauce',
+    'soy lecithin',
+  ],
+
+  gluten: [
+    'wheat',
+    'gluten',
+    'barley',
+    'rye',
+    'spelt',
+    'semolina',
+    'durum',
+    'farro',
+    'couscous',
+    'bread',
+    'flour',
+  ],
+
+  peanut: [
+    'peanut',
+    'groundnut',
+    'arachis',
+  ],
+
+  'tree nuts': [
+    'almond',
+    'cashew',
+    'walnut',
+    'pecan',
+    'hazelnut',
+    'pistachio',
+    'brazil nut',
+    'macadamia',
+    'pine nut',
+  ],
+
+  shellfish: [
+    'shrimp',
+    'prawn',
+    'crab',
+    'lobster',
+    'crayfish',
+    'scampi',
+  ],
+
+  fish: [
+    'fish',
+    'tuna',
+    'salmon',
+    'cod',
+    'mackerel',
+    'sardine',
+    'anchovy',
+    'tilapia',
+    'halibut',
+  ],
+
+  sesame: [
+    'sesame',
+    'sesame oil',
+    'tahini',
+    'sesamum',
+  ],
 };
 
-const HARMFUL_INGREDIENTS: Record<string, string> = {
-  'high fructose corn syrup': 'High in added sugar. Regular consumption may increase obesity, type 2 diabetes, and fatty liver risk.',
-  'partially hydrogenated': 'Contains trans fat. Raises bad cholesterol and lowers good cholesterol, strongly linked to heart disease.',
-  'hydrogenated': 'May contain trans fat. Linked to cardiovascular disease; intake should be minimized.',
-  'bha': 'Butylated hydroxyanisole — synthetic preservative classified as a possible human carcinogen by IARC.',
-  'bht': 'Butylated hydroxytoluene — synthetic preservative with controversial long-term safety data.',
-  'sodium nitrite': 'Preservative used in processed meats. Can form nitrosamines linked to increased cancer risk, especially colorectal cancer.',
-  'sodium nitrate': 'Preservative that converts to nitrite in the body, carrying similar risks to sodium nitrite.',
-  'potassium bromate': 'Flour improver banned in many countries. Classified as a possible human carcinogen.',
-  'propyl gallate': 'Synthetic preservative with possible endocrine-disrupting effects.',
-  'propylene glycol': 'Synthetic additive used as humectant. High amounts can affect the nervous system.',
-  'brominated vegetable oil': 'Banned in many countries; linked to neurological issues and iodine imbalance.',
-  'tbhq': 'Tertiary butylhydroquinone — synthetic preservative linked to immune effects in high doses.',
-  'red 40': 'Artificial food dye. Associated with hyperactivity in some children; banned or restricted in parts of Europe.',
-  'red 3': 'Artificial dye linked to thyroid tumors in animal studies.',
-  'yellow 5': 'Artificial dye (tartrazine). May cause allergic reactions and hyperactivity in sensitive individuals.',
-  'yellow 6': 'Artificial dye that may contain carcinogenic contaminants.',
-  'blue 1': 'Artificial dye with potential sensitivity reactions.',
-  'blue 2': 'Artificial dye with inconclusive long-term safety data.',
-  'caramel color': 'May contain 4-MEI, a compound classified as possibly carcinogenic; varies by manufacturing process.',
-  'msg': 'Flavor enhancer that can cause headaches and reactions in sensitive individuals; often indicates ultra-processed food.',
-  'monosodium glutamate': 'Flavor enhancer that can cause headaches and reactions in sensitive individuals.',
-  'sulfite': 'Preservative that can trigger asthma and allergic reactions in sensitive people.',
-  'sulphite': 'Preservative that can trigger asthma and allergic reactions in sensitive people.',
-  'sodium benzoate': 'Preservative that can form benzene (a carcinogen) when combined with vitamin C (ascorbic acid).',
-  'acesulfame k': 'Artificial sweetener with debated long-term safety; some animal studies raise concerns.',
-  'acesulfame potassium': 'Artificial sweetener with debated long-term safety.',
-  'aspartame': 'Artificial sweetener classified as possibly carcinogenic to humans by IARC.',
-  'sucralose': 'Artificial sweetener that may affect gut bacteria and insulin response with long-term use.',
-  'saccharin': 'Artificial sweetener with historical cancer concerns; still restricted in some regions.',
-  'sodium aluminum phosphate': 'Leavening agent containing aluminum; high intake not recommended.',
-  'aluminum lake': 'Colorant derived from aluminum; accumulation in the body is a concern.',
+const HARMFUL_INGREDIENTS: Record<
+  string,
+  string
+> = {
+  'high fructose corn syrup':
+    'High in added sugar and should be limited as part of a balanced diet.',
+
+  'partially hydrogenated':
+    'Indicates partially hydrogenated fat, which may contain industrial trans fat.',
+
+  hydrogenated:
+    'Hydrogenated fats should be limited, especially when they contribute trans fat.',
+
+  bha:
+    'Synthetic preservative that should be limited when present frequently in the diet.',
+
+  bht:
+    'Synthetic preservative. Intake should be kept moderate.',
+
+  'sodium nitrite':
+    'Preservative commonly used in processed meats. Frequent consumption of processed meats should be limited.',
+
+  'sodium nitrate':
+    'Preservative used in processed foods. Frequent consumption should be limited.',
+
+  'potassium bromate':
+    'Flour treatment agent that is restricted or banned in some countries.',
+
+  'propylene glycol':
+    'Food additive used as a humectant and solvent. Amounts in foods are regulated.',
+
+  'brominated vegetable oil':
+    'Food additive that is restricted in some countries.',
+
+  tbhq:
+    'Synthetic antioxidant preservative. Intake should be limited as part of a varied diet.',
+
+  'red 40':
+    'Artificial food coloring. Some sensitive individuals may prefer to limit artificial colors.',
+
+  'red 3':
+    'Artificial food coloring that is restricted in some regions.',
+
+  'yellow 5':
+    'Artificial food coloring. Some sensitive individuals may react to food colors.',
+
+  'yellow 6':
+    'Artificial food coloring that some people may prefer to limit.',
+
+  'blue 1':
+    'Artificial food coloring. Some sensitive individuals may prefer to limit artificial colors.',
+
+  'blue 2':
+    'Artificial food coloring that should be consumed within regulated food-use levels.',
+
+  'caramel color':
+    'Food coloring used in many processed foods. Amount and processing method vary.',
+
+  msg:
+    'Flavor enhancer. Generally permitted in foods, but frequent consumption may indicate a highly processed product.',
+
+  'monosodium glutamate':
+    'Flavor enhancer. Generally permitted in foods; individual sensitivity can vary.',
+
+  sulfite:
+    'Preservative that can cause reactions in sensitive individuals, especially those with sulfite sensitivity.',
+
+  sulphite:
+    'Preservative that can cause reactions in sensitive individuals, especially those with sulfite sensitivity.',
+
+  'sodium benzoate':
+    'Common preservative. Used within regulated limits in foods.',
+
+  'acesulfame k':
+    'Artificial sweetener. Intake should remain within recommended limits.',
+
+  'acesulfame potassium':
+    'Artificial sweetener. Intake should remain within recommended limits.',
+
+  aspartame:
+    'Artificial sweetener. People with phenylketonuria need to avoid it.',
+
+  sucralose:
+    'Artificial sweetener. Suitable within recommended intake levels.',
+
+  saccharin:
+    'Artificial sweetener. Suitable within regulated intake levels.',
+
+  'sodium aluminum phosphate':
+    'Leavening ingredient containing aluminum. Intake should remain moderate.',
+
+  'aluminum lake':
+    'Color additive containing aluminum and used in processed foods.',
 };
 
-const MODERATE_INGREDIENTS: Record<string, string> = {
-  'sugar': 'Added sugar. Excessive intake contributes to weight gain, diabetes, and dental cavities.',
-  'cane sugar': 'Added sugar. Consume in moderation to avoid metabolic issues.',
-  'brown sugar': 'Added sugar with minimal nutritional difference from white sugar.',
-  'dextrose': 'Simple sugar that spikes blood glucose quickly.',
-  'maltodextrin': 'Processed carbohydrate with a very high glycemic index; spikes blood sugar.',
-  'corn syrup': 'Added sugar. High intake linked to metabolic problems.',
-  'invert syrup': 'Added sugar form; contributes to excessive sugar intake.',
-  'palm oil': 'High in saturated fat. Frequent consumption raises cardiovascular risk.',
-  'canola oil': 'Refined oil; moderate use is fine but heavily processed forms are less ideal.',
-  'soybean oil': 'High in omega-6 fatty acids; excessive intake may promote inflammation.',
-  'sunflower oil': 'Refined seed oil; moderate consumption is acceptable.',
-  'cottonseed oil': 'Highly processed oil often containing pesticide residues.',
-  'shortening': 'Solid fat high in saturated or trans fats; limit intake.',
-  'glycerin': 'Food additive generally safe but indicates processed food.',
-  'modified food starch': 'Processed thickener with little nutritional value.',
-  'xanthan gum': 'Thickener generally safe but can cause digestive issues in large amounts.',
-  'carrageenan': 'Thickener derived from seaweed; controversial links to inflammation.',
-  'natural flavor': 'Vague term that can include many extracts; hard to assess without specifics.',
-  'artificial flavor': 'Synthetic flavoring; safety depends on the specific compounds used.',
-  'inulin': 'Fiber additive that can cause bloating in high amounts.',
-  'potassium sorbate': 'Preservative generally recognized as safe but indicates processed food.',
-  'calcium sorbate': 'Preservative; generally safe in small quantities.',
-  'citric acid': 'Common preservative and acidulant; safe but often industrially produced.',
-  'phosphoric acid': 'Acidulant linked to lower bone density with excessive cola consumption.',
-  'monoglycerides': 'Emulsifier generally safe but indicates processed food.',
-  'diglycerides': 'Emulsifier generally safe but indicates processed food.',
-  'soy lecithin': 'Emulsifier generally safe in small amounts; indicates processed food.',
-  'lecithin': 'Emulsifier generally safe; indicates processed food.',
+const MODERATE_INGREDIENTS: Record<
+  string,
+  string
+> = {
+  sugar:
+    'Added sugar. Excessive intake can contribute to excess calorie intake and dental problems.',
+
+  'cane sugar':
+    'Added sugar. Should be consumed in moderation.',
+
+  'brown sugar':
+    'Added sugar with a similar nutritional effect to other added sugars.',
+
+  dextrose:
+    'Simple sugar that can raise blood glucose quickly.',
+
+  maltodextrin:
+    'Processed carbohydrate with a high glycemic index.',
+
+  'corn syrup':
+    'Added sugar. Frequent high intake should be limited.',
+
+  'invert syrup':
+    'Added sugar that contributes to total sugar intake.',
+
+  'palm oil':
+    'Contains a relatively high amount of saturated fat. Moderate intake is recommended.',
+
+  'canola oil':
+    'Refined cooking oil. Moderate consumption is generally acceptable.',
+
+  'soybean oil':
+    'Refined vegetable oil. Overall dietary balance is more important than avoiding it completely.',
+
+  'sunflower oil':
+    'Refined seed oil. Moderate consumption is generally acceptable.',
+
+  'cottonseed oil':
+    'Refined vegetable oil commonly used in processed foods.',
+
+  shortening:
+    'Solid fat that may contain significant saturated fat and should be limited.',
+
+  glycerin:
+    'Food additive commonly used as a humectant. Generally permitted in foods.',
+
+  'modified food starch':
+    'Processed thickening ingredient with limited nutritional value.',
+
+  'xanthan gum':
+    'Thickener generally considered safe in normal food quantities.',
+
+  carrageenan:
+    'Thickener used in processed foods. Individual tolerance may vary.',
+
+  'natural flavor':
+    'Broad ingredient category that does not specify the exact flavoring substances.',
+
+  'artificial flavor':
+    'Synthetic flavoring category. Exact ingredients are not specified on the label.',
+
+  inulin:
+    'Added fiber that can cause digestive discomfort in some people at high amounts.',
+
+  'potassium sorbate':
+    'Common preservative used within regulated food-use levels.',
+
+  'calcium sorbate':
+    'Preservative generally used in small quantities.',
+
+  'citric acid':
+    'Common acidity regulator and preservative used in many foods.',
+
+  'phosphoric acid':
+    'Acidulant commonly found in soft drinks and processed beverages.',
+
+  monoglycerides:
+    'Emulsifier used in processed foods.',
+
+  diglycerides:
+    'Emulsifier used in processed foods.',
+
+  'soy lecithin':
+    'Common emulsifier. Soy-sensitive individuals should check allergen labeling.',
+
+  lecithin:
+    'Common emulsifier used in many processed foods.',
 };
 
-const SAFE_INGREDIENTS: Record<string, string> = {
-  'water': 'Essential and naturally present in many foods.',
-  'whole grain': 'Whole grains provide fiber, vitamins, and sustained energy.',
-  'whole wheat': 'Whole grain flour retaining bran and germ for better nutrition.',
-  'oats': 'Whole grain rich in soluble fiber that supports heart health.',
-  'brown rice': 'Whole grain providing fiber and minerals.',
-  'quinoa': 'Complete protein whole grain with fiber and minerals.',
-  'sea salt': 'Natural salt; provides sodium but in less processed form.',
-  'salt': 'Sodium source; necessary in small amounts but easy to overconsume.',
-  'honey': 'Natural sweetener with antioxidants; still a sugar — moderate use.',
-  'maple syrup': 'Natural sweetener with minerals; still a sugar — moderate use.',
-  'fruit': 'Whole fruit provides vitamins, fiber, and antioxidants.',
-  'vegetable': 'Vegetables provide vitamins, minerals, and fiber.',
-  'tomato': 'Rich in lycopene, vitamin C, and potassium.',
-  'onion': 'Contains antioxidants and prebiotic fiber.',
-  'garlic': 'Contains allicin with antimicrobial and heart-health benefits.',
-  'olive oil': 'Heart-healthy monounsaturated fat rich in antioxidants.',
-  'extra virgin olive oil': 'Highest quality olive oil with strong anti-inflammatory properties.',
-  'vinegar': 'May help regulate blood sugar; safe in normal amounts.',
-  'apple cider vinegar': 'May aid blood sugar control; consume diluted.',
-  'herbs': 'Natural flavorings with antioxidants and no downside.',
-  'spices': 'Natural flavorings with antioxidants and potential health benefits.',
-  'turmeric': 'Contains curcumin, a powerful anti-inflammatory compound.',
-  'ginger': 'Aids digestion and has anti-inflammatory properties.',
-  'cinnamon': 'May help regulate blood sugar; safe in culinary amounts.',
-  'black pepper': 'Enhances nutrient absorption; safe culinary spice.',
-  'lemon': 'Rich in vitamin C and antioxidants.',
-  'citrus': 'Provides vitamin C and flavonoids.',
-  'egg': 'High-quality complete protein with vitamins and choline.',
-  'milk': 'Good source of protein, calcium, and vitamin D.',
-  'yogurt': 'Provides probiotics, protein, and calcium.',
-  'chicken': 'Lean protein source.',
-  'beef': 'Protein and iron source; lean cuts preferred.',
-  'fish': 'Excellent protein and omega-3 source supporting heart and brain health.',
-  'salmon': 'Rich in omega-3 fatty acids beneficial for heart and brain.',
-  'whey protein': 'High-quality protein; well-absorbed.',
-  'almond': 'Nutrient-dense nut with healthy fats and vitamin E.',
-  'cashew': 'Nut providing healthy fats and minerals.',
-  'walnut': 'Rich in omega-3 plant fats and antioxidants.',
-  'peanut': 'Protein and fat source; watch for aflatoxin and allergies.',
-  'lentil': 'High-fiber legume with plant protein and iron.',
-  'chickpea': 'Legume rich in protein, fiber, and folate.',
-  'bean': 'High in fiber and plant protein.',
-  'spinach': 'Leafy green rich in iron, folate, and vitamins.',
-  'kale': 'Nutrient-dense leafy green loaded with vitamins and antioxidants.',
-  'carrot': 'Rich in beta-carotene for eye and immune health.',
-  'broccoli': 'Cruciferous vegetable with vitamins and cancer-fighting compounds.',
-  'potato': 'Provides potassium and vitamin C; nutrient profile depends on preparation.',
-  'sugar cane': 'Whole form of sugar; still contributes to sugar intake when processed.',
-  'yeast': 'Natural leavening agent; safe and traditional.',
-  'baking soda': 'Common leavening agent; safe in normal amounts.',
-  'enzyme': 'Natural proteins used in processing; generally safe.',
-  'vinegar culture': 'Used in fermentation; safe.',
-  'probiotic': 'Beneficial bacteria supporting gut health.',
-  'ascorbic acid': 'Vitamin C; antioxidant and preservative that is beneficial.',
-  'vitamin c': 'Essential vitamin with antioxidant properties.',
-  'vitamin e': 'Antioxidant vitamin beneficial for skin and cells.',
-  'iron': 'Essential mineral for oxygen transport in blood.',
-  'calcium': 'Essential mineral for bones and teeth.',
-  'potassium': 'Important mineral for heart and muscle function.',
-  'magnesium': 'Essential mineral for hundreds of bodily processes.',
-  'zinc': 'Essential mineral for immune function.',
+const SAFE_INGREDIENTS: Record<
+  string,
+  string
+> = {
+  water:
+    'Essential and naturally present in many foods.',
+
+  'whole grain':
+    'Whole grains provide fiber, vitamins, minerals, and sustained energy.',
+
+  'whole wheat':
+    'Whole grain ingredient that provides fiber and nutrients.',
+
+  oats:
+    'Whole grain rich in soluble fiber.',
+
+  'brown rice':
+    'Whole grain providing fiber and minerals.',
+
+  quinoa:
+    'Nutrient-dense grain-like food providing protein and fiber.',
+
+  'sea salt':
+    'Provides sodium. Like other salt, it should still be consumed in moderation.',
+
+  salt:
+    'Provides sodium, which is essential but easy to consume in excess.',
+
+  honey:
+    'Natural sweetener, but still contributes to total sugar intake.',
+
+  'maple syrup':
+    'Natural sweetener that still contributes to total sugar intake.',
+
+  fruit:
+    'Whole fruit provides vitamins, minerals, fiber, and antioxidants.',
+
+  vegetable:
+    'Vegetables provide vitamins, minerals, fiber, and other beneficial compounds.',
+
+  tomato:
+    'Provides lycopene, vitamin C, and potassium.',
+
+  onion:
+    'Provides antioxidants and prebiotic compounds.',
+
+  garlic:
+    'Provides beneficial plant compounds.',
+
+  'olive oil':
+    'Rich in monounsaturated fat and other beneficial compounds.',
+
+  'extra virgin olive oil':
+    'Provides monounsaturated fat and antioxidant compounds.',
+
+  vinegar:
+    'Common food ingredient used for acidity and flavor.',
+
+  'apple cider vinegar':
+    'Common vinegar used in foods and beverages.',
+
+  herbs:
+    'Natural flavoring ingredients that can provide plant compounds.',
+
+  spices:
+    'Natural flavoring ingredients that may provide antioxidants.',
+
+  turmeric:
+    'Contains curcumin and other plant compounds.',
+
+  ginger:
+    'Contains naturally occurring bioactive compounds.',
+
+  cinnamon:
+    'Common spice containing antioxidant compounds.',
+
+  'black pepper':
+    'Common spice containing piperine and other plant compounds.',
+
+  lemon:
+    'Provides vitamin C and other plant compounds.',
+
+  citrus:
+    'Provides vitamin C and flavonoids.',
+
+  egg:
+    'Provides high-quality protein and several vitamins and minerals.',
+
+  milk:
+    'Provides protein, calcium, and other nutrients.',
+
+  yogurt:
+    'Can provide protein, calcium, and live cultures.',
+
+  chicken:
+    'Provides protein and several nutrients.',
+
+  beef:
+    'Provides protein, iron, and other nutrients.',
+
+  fish:
+    'Provides protein and, depending on the type, omega-3 fatty acids.',
+
+  salmon:
+    'Rich source of protein and omega-3 fatty acids.',
+
+  'whey protein':
+    'High-quality protein source.',
+
+  almond:
+    'Provides healthy fats, protein, fiber, and vitamin E.',
+
+  cashew:
+    'Provides healthy fats, protein, and minerals.',
+
+  walnut:
+    'Provides healthy fats and plant omega-3 fatty acids.',
+
+  peanut:
+    'Provides protein and healthy fats. Peanut allergy should be considered.',
+
+  lentil:
+    'Provides plant protein, fiber, iron, and folate.',
+
+  chickpea:
+    'Provides plant protein, fiber, and minerals.',
+
+  bean:
+    'Provides fiber and plant protein.',
+
+  spinach:
+    'Provides folate, vitamins, minerals, and plant compounds.',
+
+  kale:
+    'Nutrient-dense leafy vegetable.',
+
+  carrot:
+    'Provides beta-carotene and other nutrients.',
+
+  broccoli:
+    'Provides fiber, vitamins, and plant compounds.',
+
+  potato:
+    'Provides carbohydrates, potassium, and vitamin C depending on preparation.',
+
+  'sugar cane':
+    'Source of sugar. Once processed into sugar, it contributes to added sugar intake.',
+
+  yeast:
+    'Common food ingredient used for fermentation and leavening.',
+
+  'baking soda':
+    'Common leavening agent used in small quantities.',
+
+  enzyme:
+    'Enzymes are commonly used during food processing.',
+
+  'vinegar culture':
+    'Used in fermentation processes.',
+
+  probiotic:
+    'Beneficial microorganisms used in some fermented foods.',
+
+  'ascorbic acid':
+    'Vitamin C used as an antioxidant and food preservative.',
+
+  'vitamin c':
+    'Essential vitamin with antioxidant functions.',
+
+  'vitamin e':
+    'Antioxidant vitamin.',
+
+  iron:
+    'Essential mineral involved in oxygen transport.',
+
+  calcium:
+    'Essential mineral important for bones and teeth.',
+
+  potassium:
+    'Essential mineral important for nerve and muscle function.',
+
+  magnesium:
+    'Essential mineral involved in many body processes.',
+
+  zinc:
+    'Essential mineral involved in immune function and metabolism.',
 };
 
-function normalize(s: string): string {
-  return s.toLowerCase().trim().replace(/[.,;()]/g, '').replace(/\s+/g, ' ');
+function normalize(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[.,;:()[\]{}]/g, ' ')
+    .replace(/\s+/g, ' ');
 }
 
-function classifyIngredient(raw: string): IngredientInfo {
-  const name = normalize(raw);
-  if (!name) return { name: raw.trim(), classification: 'safe', reason: 'Unrecognized ingredient; cannot fully assess.', isAdditive: false, isArtificial: false };
+function containsIngredient(
+  ingredient: string,
+  key: string
+): boolean {
+  const text = ` ${normalize(ingredient)} `;
+  const target = ` ${normalize(key)} `;
 
-  for (const [key, reason] of Object.entries(HARMFUL_INGREDIENTS)) {
-    if (name.includes(key)) {
-      return { name: raw.trim(), classification: 'harmful', reason, isAdditive: true, isArtificial: /dye|color|red|yellow|blue|green|lake|artificial|hydrogenated|bromat/i.test(key) };
-    }
-  }
-  for (const [key, reason] of Object.entries(MODERATE_INGREDIENTS)) {
-    if (name.includes(key)) {
-      return { name: raw.trim(), classification: 'moderate', reason, isAdditive: /gum|emulsif|preserv|starch|flavor|acid/i.test(key), isArtificial: false };
-    }
-  }
-  for (const [key, reason] of Object.entries(SAFE_INGREDIENTS)) {
-    if (name.includes(key)) {
-      return { name: raw.trim(), classification: 'safe', reason, isAdditive: false, isArtificial: false };
-    }
-  }
-  return { name: raw.trim(), classification: 'safe', reason: 'Unrecognized ingredient; generally assumed safe but not fully assessed.', isAdditive: false, isArtificial: false };
+  return (
+    text.includes(target) ||
+    normalize(ingredient) === normalize(key)
+  );
 }
 
-function detectAllergens(ingredients: string[]): string[] {
+function classifyIngredient(
+  raw: string
+): IngredientInfo {
+  const cleanName = raw.trim();
+  const name = normalize(cleanName);
+
+  if (!name) {
+    return {
+      name: cleanName,
+      classification: 'safe',
+      reason: 'Empty ingredient entry.',
+      isAdditive: false,
+      isArtificial: false,
+    };
+  }
+
+  for (const [
+    key,
+    reason,
+  ] of Object.entries(HARMFUL_INGREDIENTS)) {
+    if (containsIngredient(name, key)) {
+      return {
+        name: cleanName,
+        classification: 'harmful',
+        reason,
+        isAdditive: true,
+        isArtificial:
+          /dye|color|red|yellow|blue|lake|artificial|hydrogenated|bromat/i.test(
+            key
+          ),
+      };
+    }
+  }
+
+  for (const [
+    key,
+    reason,
+  ] of Object.entries(MODERATE_INGREDIENTS)) {
+    if (containsIngredient(name, key)) {
+      return {
+        name: cleanName,
+        classification: 'moderate',
+        reason,
+        isAdditive:
+          /gum|emulsif|preserv|starch|flavor|acid|sorbate|lecithin/i.test(
+            key
+          ),
+        isArtificial:
+          /artificial|synthetic/i.test(key),
+      };
+    }
+  }
+
+  for (const [
+    key,
+    reason,
+  ] of Object.entries(SAFE_INGREDIENTS)) {
+    if (containsIngredient(name, key)) {
+      return {
+        name: cleanName,
+        classification: 'safe',
+        reason,
+        isAdditive: false,
+        isArtificial: false,
+      };
+    }
+  }
+
+  return {
+    name: cleanName,
+    classification: 'safe',
+    reason:
+      'This ingredient is not in the current assessment database, so it has not been specifically assessed.',
+    isAdditive: false,
+    isArtificial: false,
+  };
+}
+
+function detectAllergens(
+  ingredients: string[]
+): string[] {
   const found = new Set<string>();
-  const text = ingredients.map(normalize).join(' ');
-  for (const [allergen, aliases] of Object.entries(ALLERGEN_ALIASES)) {
-    if (aliases.some((a) => text.includes(a))) {
+
+  const text = ingredients
+    .map(normalize)
+    .join(' ');
+
+  for (const [
+    allergen,
+    aliases,
+  ] of Object.entries(
+    ALLERGEN_ALIASES
+  )) {
+    const detected = aliases.some(
+      (alias) => {
+        const normalizedAlias =
+          normalize(alias);
+
+        return text.includes(
+          normalizedAlias
+        );
+      }
+    );
+
+    if (detected) {
       found.add(allergen);
     }
   }
+
   return [...found];
 }
 
 function computeHealthScore(
   nutrition: NutritionFacts,
   ingredientAnalysis: IngredientInfo[]
-): { score: number; breakdown: { label: string; points: number; max: number }[] } {
-  const breakdown: { label: string; points: number; max: number }[] = [];
+): {
+  score: number;
+  breakdown: {
+    label: string;
+    points: number;
+    max: number;
+  }[];
+} {
+  const breakdown: {
+    label: string;
+    points: number;
+    max: number;
+  }[] = [];
+
   let score = 100;
 
-  const harmful = ingredientAnalysis.filter((i) => i.classification === 'harmful').length;
-  const moderate = ingredientAnalysis.filter((i) => i.classification === 'moderate').length;
-  let pts = 0;
-  pts -= harmful * 7;
-  pts -= Math.min(moderate * 3, 18);
-  breakdown.push({ label: 'Additives & Preservatives', points: Math.max(pts, -25), max: 25 });
-  score += Math.max(pts, -25);
+  const harmful =
+    ingredientAnalysis.filter(
+      (item) =>
+        item.classification === 'harmful'
+    ).length;
+
+  const moderate =
+    ingredientAnalysis.filter(
+      (item) =>
+        item.classification === 'moderate'
+    ).length;
+
+  const ingredientPenalty = Math.max(
+    -(harmful * 7) -
+      Math.min(moderate * 2, 16),
+    -25
+  );
+
+  breakdown.push({
+    label: 'Ingredients',
+    points: ingredientPenalty,
+    max: 25,
+  });
+
+  score += ingredientPenalty;
 
   if (nutrition.sodium != null) {
-    let s = 0;
-    if (nutrition.sodium > 800) s = -10;
-    else if (nutrition.sodium > 400) s = -5;
-    else if (nutrition.sodium < 120) s = 5;
-    breakdown.push({ label: 'Sodium', points: s, max: 10 });
-    score += s;
+    let points = 0;
+
+    if (nutrition.sodium > 800) {
+      points = -10;
+    } else if (nutrition.sodium > 400) {
+      points = -5;
+    } else if (nutrition.sodium < 120) {
+      points = 5;
+    }
+
+    breakdown.push({
+      label: 'Sodium',
+      points,
+      max: 10,
+    });
+
+    score += points;
   }
 
   if (nutrition.sugar != null) {
-    let s = 0;
-    if (nutrition.sugar > 20) s = -12;
-    else if (nutrition.sugar > 10) s = -6;
-    else if (nutrition.sugar < 5) s = 5;
-    breakdown.push({ label: 'Sugar', points: s, max: 12 });
-    score += s;
+    let points = 0;
+
+    if (nutrition.sugar > 20) {
+      points = -12;
+    } else if (nutrition.sugar > 10) {
+      points = -6;
+    } else if (nutrition.sugar < 5) {
+      points = 5;
+    }
+
+    breakdown.push({
+      label: 'Sugar',
+      points,
+      max: 12,
+    });
+
+    score += points;
   }
 
   if (nutrition.addedSugar != null) {
-    let s = 0;
-    if (nutrition.addedSugar > 15) s = -10;
-    else if (nutrition.addedSugar > 8) s = -5;
-    else if (nutrition.addedSugar === 0) s = 5;
-    breakdown.push({ label: 'Added Sugar', points: s, max: 10 });
-    score += s;
+    let points = 0;
+
+    if (nutrition.addedSugar > 15) {
+      points = -10;
+    } else if (nutrition.addedSugar > 8) {
+      points = -5;
+    } else if (nutrition.addedSugar === 0) {
+      points = 5;
+    }
+
+    breakdown.push({
+      label: 'Added Sugar',
+      points,
+      max: 10,
+    });
+
+    score += points;
   }
 
   if (nutrition.saturatedFat != null) {
-    let s = 0;
-    if (nutrition.saturatedFat > 5) s = -8;
-    else if (nutrition.saturatedFat > 3) s = -4;
-    else if (nutrition.saturatedFat < 1) s = 4;
-    breakdown.push({ label: 'Saturated Fat', points: s, max: 8 });
-    score += s;
+    let points = 0;
+
+    if (nutrition.saturatedFat > 5) {
+      points = -8;
+    } else if (nutrition.saturatedFat > 3) {
+      points = -4;
+    } else if (nutrition.saturatedFat < 1) {
+      points = 4;
+    }
+
+    breakdown.push({
+      label: 'Saturated Fat',
+      points,
+      max: 8,
+    });
+
+    score += points;
   }
 
-  if (nutrition.transFat != null && nutrition.transFat > 0) {
-    breakdown.push({ label: 'Trans Fat', points: -8, max: 8 });
-    score -= 8;
+  if (nutrition.transFat != null) {
+    let points = 0;
+
+    if (nutrition.transFat > 0) {
+      points = -8;
+    }
+
+    breakdown.push({
+      label: 'Trans Fat',
+      points,
+      max: 8,
+    });
+
+    score += points;
   }
 
   if (nutrition.fiber != null) {
-    let s = 0;
-    if (nutrition.fiber > 5) s = 8;
-    else if (nutrition.fiber > 3) s = 5;
-    else if (nutrition.fiber < 1) s = -3;
-    breakdown.push({ label: 'Fiber', points: s, max: 8 });
-    score += s;
+    let points = 0;
+
+    if (nutrition.fiber > 5) {
+      points = 8;
+    } else if (nutrition.fiber > 3) {
+      points = 5;
+    } else if (nutrition.fiber < 1) {
+      points = -3;
+    }
+
+    breakdown.push({
+      label: 'Fiber',
+      points,
+      max: 8,
+    });
+
+    score += points;
   }
 
   if (nutrition.protein != null) {
-    let s = 0;
-    if (nutrition.protein > 10) s = 6;
-    else if (nutrition.protein > 5) s = 3;
-    else if (nutrition.protein < 2) s = -2;
-    breakdown.push({ label: 'Protein', points: s, max: 6 });
-    score += s;
+    let points = 0;
+
+    if (nutrition.protein > 10) {
+      points = 6;
+    } else if (nutrition.protein > 5) {
+      points = 3;
+    } else if (nutrition.protein < 2) {
+      points = -2;
+    }
+
+    breakdown.push({
+      label: 'Protein',
+      points,
+      max: 6,
+    });
+
+    score += points;
   }
 
   if (nutrition.calories != null) {
-    let s = 0;
-    if (nutrition.calories > 500) s = -5;
-    else if (nutrition.calories > 300) s = -2;
-    else if (nutrition.calories < 150) s = 3;
-    breakdown.push({ label: 'Calories (per serving)', points: s, max: 5 });
-    score += s;
+    let points = 0;
+
+    if (nutrition.calories > 500) {
+      points = -5;
+    } else if (nutrition.calories > 300) {
+      points = -2;
+    } else if (nutrition.calories < 150) {
+      points = 3;
+    }
+
+    breakdown.push({
+      label: 'Calories',
+      points,
+      max: 5,
+    });
+
+    score += points;
   }
 
-  const scoreInt = Math.max(0, Math.min(100, Math.round(score)));
-  return { score: scoreInt, breakdown };
+  return {
+    score: Math.max(
+      0,
+      Math.min(100, Math.round(score))
+    ),
+    breakdown,
+  };
 }
 
-function scoreToGrade(score: number): string {
+function scoreToGrade(
+  score: number
+): string {
   if (score >= 95) return 'A+';
   if (score >= 85) return 'A';
   if (score >= 75) return 'B';
   if (score >= 60) return 'C';
   if (score >= 40) return 'D';
+
   return 'F';
 }
 
@@ -320,79 +899,157 @@ function generateRecommendations(
   nutrition: NutritionFacts,
   ingredientAnalysis: IngredientInfo[],
   allergens: string[]
-): Record<string, { suitable: boolean; reason: string }> {
-  const recs: Record<string, { suitable: boolean; reason: string }> = {};
-  const harmful = ingredientAnalysis.filter((i) => i.classification === 'harmful');
-  const sugar = nutrition.sugar ?? 0;
-  const addedSugar = nutrition.addedSugar ?? nutrition.sugar ?? 0;
-  const sodium = nutrition.sodium ?? 0;
-  const satFat = nutrition.saturatedFat ?? 0;
-  const transFat = nutrition.transFat ?? 0;
-  const fiber = nutrition.fiber ?? 0;
-  const protein = nutrition.protein ?? 0;
-  const calories = nutrition.calories ?? 0;
+): Record<
+  string,
+  {
+    suitable: boolean;
+    reason: string;
+  }
+> {
+  const recommendations: Record<
+    string,
+    {
+      suitable: boolean;
+      reason: string;
+    }
+  > = {};
 
-  recs.diabetic = {
-    suitable: addedSugar < 8 && sugar < 12,
+  const harmful =
+    ingredientAnalysis.filter(
+      (item) =>
+        item.classification === 'harmful'
+    );
+
+  const sugar =
+    nutrition.sugar ?? 0;
+
+  const addedSugar =
+    nutrition.addedSugar ??
+    nutrition.sugar ??
+    0;
+
+  const sodium =
+    nutrition.sodium ?? 0;
+
+  const saturatedFat =
+    nutrition.saturatedFat ?? 0;
+
+  const transFat =
+    nutrition.transFat ?? 0;
+
+  const fiber =
+    nutrition.fiber ?? 0;
+
+  const protein =
+    nutrition.protein ?? 0;
+
+  const calories =
+    nutrition.calories ?? 0;
+
+  recommendations.diabetic = {
+    suitable:
+      addedSugar < 8 &&
+      sugar < 12,
+
     reason:
-      addedSugar >= 8 || sugar >= 12
-        ? `This product contains ${sugar}g of sugar per serving which is high. Not recommended for diabetic users as it can spike blood glucose.`
-        : 'Sugar content is moderate to low. May be acceptable for diabetic users in controlled portions.',
+      addedSugar >= 8 ||
+      sugar >= 12
+        ? `This product contains ${sugar}g of sugar per 100g. Consider a lower-sugar option.`
+        : 'Sugar content is relatively low. Portion size should still be considered.',
   };
 
-  recs.weight_loss = {
-    suitable: calories < 250 && sugar < 10 && fiber > 2,
+  recommendations.weight_loss = {
+    suitable:
+      calories < 250 &&
+      sugar < 10 &&
+      fiber > 2,
+
     reason:
-      calories >= 250 || sugar >= 10
-        ? `At ${calories} calories per serving with ${sugar}g sugar, this is calorie-dense and not ideal for weight loss goals.`
-        : 'Lower in calories and sugar with decent fiber — suitable for a weight loss plan.',
+      calories >= 250
+        ? `This product contains ${calories} calories per 100g.`
+        : sugar >= 10
+          ? `This product contains ${sugar}g sugar per 100g.`
+          : fiber <= 2
+            ? 'Fiber content is relatively low for a weight-management food.'
+            : 'Lower calorie and sugar content with useful fiber.',
   };
 
-  recs.gym = {
-    suitable: protein > 8 && sugar < 15,
+  recommendations.gym = {
+    suitable:
+      protein > 8 &&
+      sugar < 15,
+
     reason:
       protein <= 8
-        ? `Only ${protein}g protein per serving. For fitness goals, look for higher protein options to support muscle recovery.`
-        : `Good protein content (${protein}g). Supports muscle repair and satiety for active individuals.`,
+        ? `Protein is ${protein}g per 100g. Higher-protein foods may be more useful for muscle recovery.`
+        : `Provides ${protein}g protein per 100g and may support protein intake.`,
   };
 
-  recs.kid = {
-    suitable: harmful.filter((h) => /dye|color|red|yellow|blue|aspartame|acesulfame|sucralose/i.test(h.name)).length === 0 && sugar < 12,
+  const artificialConcern =
+    harmful.some(
+      (item) =>
+        /dye|color|red|yellow|blue|aspartame|acesulfame|sucralose/i.test(
+          item.name
+        )
+    );
+
+  recommendations.kid = {
+    suitable:
+      !artificialConcern &&
+      sugar < 12,
+
     reason:
-      harmful.some((h) => /dye|color|red|yellow|blue|aspartame|acesulfame|sucralose/i.test(h.name))
-        ? 'Contains artificial colors or sweeteners that may affect children. Consider alternatives for kids.'
+      artificialConcern
+        ? 'Contains ingredients that some parents may prefer to limit in children.'
         : sugar >= 12
-          ? `High sugar (${sugar}g) is not ideal for children and may contribute to hyperactivity and dental issues.`
-          : 'Free of concerning artificial additives and moderate in sugar. Acceptable for children in reasonable portions.',
+          ? `Sugar is ${sugar}g per 100g, which is relatively high.`
+          : 'No major flagged artificial-color or sweetener concern was detected.',
   };
 
-  recs.pregnant = {
-    suitable: harmful.filter((h) => /nitrite|nitrate|bromat|aspartame|acesulfame|saccharin/i.test(h.name)).length === 0,
+  const pregnancyConcern =
+    harmful.some(
+      (item) =>
+        /nitrite|nitrate|bromat|aspartame|acesulfame|saccharin/i.test(
+          item.name
+        )
+    );
+
+  recommendations.pregnant = {
+    suitable:
+      !pregnancyConcern,
+
     reason:
-      harmful.some((h) => /nitrite|nitrate|bromat|aspartame|acesulfame|saccharin/i.test(h.name))
-        ? 'Contains additives (nitrates, artificial sweeteners, or bromates) best avoided during pregnancy.'
-        : 'No pregnancy-flagged additives detected. Generally acceptable; always consult your doctor for dietary decisions.',
+      pregnancyConcern
+        ? 'Some ingredients in this product may require additional dietary consideration during pregnancy.'
+        : 'No pregnancy-specific flagged ingredients were detected. Individual dietary advice should be discussed with a healthcare professional.',
   };
 
-  recs.heart_patient = {
-    suitable: sodium < 400 && satFat < 3 && transFat === 0,
+  recommendations.heart_patient = {
+    suitable:
+      sodium < 400 &&
+      saturatedFat < 3 &&
+      transFat === 0,
+
     reason:
       transFat > 0
-        ? 'Contains trans fat which is strongly harmful for heart health. Avoid this product.'
-        : sodium >= 400 || satFat >= 3
-          ? `High ${sodium >= 400 ? `sodium (${sodium}mg) ` : ''}${satFat >= 3 ? `and saturated fat (${satFat}g) ` : ''}make this unsuitable for heart patients.`
-          : 'Low sodium and saturated fat with no trans fat — compatible with a heart-healthy diet.',
+        ? 'Contains trans fat, which should be avoided as much as possible.'
+        : sodium >= 400 ||
+            saturatedFat >= 3
+          ? `This product has ${sodium}mg sodium and ${saturatedFat}g saturated fat per 100g.`
+          : 'Relatively low sodium and saturated fat with no detected trans fat.',
   };
 
-  recs.high_bp = {
-    suitable: sodium < 300,
+  recommendations.high_bp = {
+    suitable:
+      sodium < 300,
+
     reason:
       sodium >= 300
-        ? `Sodium is ${sodium}mg per serving which is high. Not recommended for individuals with high blood pressure.`
-        : `Sodium is ${sodium}mg — within a reasonable range for blood pressure management.`,
+        ? `Sodium is ${sodium}mg per 100g. A lower-sodium product may be preferable.`
+        : `Sodium is ${sodium}mg per 100g.`,
   };
 
-  return recs;
+  return recommendations;
 }
 
 function generateWarnings(
@@ -401,33 +1058,172 @@ function generateWarnings(
   allergens: string[]
 ): string[] {
   const warnings: string[] = [];
-  if (nutrition.transFat && nutrition.transFat > 0) warnings.push('Contains trans fat — strongly linked to heart disease.');
-  if (nutrition.sodium && nutrition.sodium > 800) warnings.push(`Very high sodium (${nutrition.sodium}mg per serving).`);
-  if (nutrition.sugar && nutrition.sugar > 20) warnings.push(`High sugar content (${nutrition.sugar}g per serving).`);
-  if (nutrition.addedSugar && nutrition.addedSugar > 15) warnings.push(`High added sugar (${nutrition.addedSugar}g per serving).`);
-  if (nutrition.saturatedFat && nutrition.saturatedFat > 5) warnings.push(`High saturated fat (${nutrition.saturatedFat}g per serving).`);
-  if (allergens.length > 0) warnings.push(`Contains allergens: ${allergens.join(', ')}.`);
-  if (ingredientAnalysis.some((i) => i.classification === 'harmful')) {
-    const names = ingredientAnalysis.filter((i) => i.classification === 'harmful').map((i) => i.name);
-    warnings.push(`Contains concerning additives: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`);
+
+  if (
+    nutrition.transFat != null &&
+    nutrition.transFat > 0
+  ) {
+    warnings.push(
+      'Contains trans fat.'
+    );
   }
+
+  if (
+    nutrition.sodium != null &&
+    nutrition.sodium > 800
+  ) {
+    warnings.push(
+      `Very high sodium (${nutrition.sodium}mg per 100g).`
+    );
+  }
+
+  if (
+    nutrition.sugar != null &&
+    nutrition.sugar > 20
+  ) {
+    warnings.push(
+      `High sugar content (${nutrition.sugar}g per 100g).`
+    );
+  }
+
+  if (
+    nutrition.addedSugar != null &&
+    nutrition.addedSugar > 15
+  ) {
+    warnings.push(
+      `High added sugar (${nutrition.addedSugar}g per 100g).`
+    );
+  }
+
+  if (
+    nutrition.saturatedFat != null &&
+    nutrition.saturatedFat > 5
+  ) {
+    warnings.push(
+      `High saturated fat (${nutrition.saturatedFat}g per 100g).`
+    );
+  }
+
+  if (allergens.length > 0) {
+    warnings.push(
+      `Detected allergens: ${allergens.join(', ')}.`
+    );
+  }
+
+  const harmful =
+    ingredientAnalysis.filter(
+      (item) =>
+        item.classification === 'harmful'
+    );
+
+  if (harmful.length > 0) {
+    const names =
+      harmful.map(
+        (item) => item.name
+      );
+
+    warnings.push(
+      `Flagged ingredients: ${names
+        .slice(0, 3)
+        .join(', ')}${
+        names.length > 3
+          ? '…'
+          : ''
+      }`
+    );
+  }
+
   return warnings;
 }
 
-function generatePositives(nutrition: NutritionFacts, ingredientAnalysis: IngredientInfo[]): string[] {
+function generatePositives(
+  nutrition: NutritionFacts,
+  ingredientAnalysis: IngredientInfo[]
+): string[] {
   const positives: string[] = [];
-  if (nutrition.fiber && nutrition.fiber > 4) positives.push(`Good fiber content (${nutrition.fiber}g per serving).`);
-  if (nutrition.protein && nutrition.protein > 8) positives.push(`Good protein content (${nutrition.protein}g per serving).`);
-  if (nutrition.sugar != null && nutrition.sugar < 5) positives.push('Low sugar content.');
-  if (nutrition.sodium != null && nutrition.sodium < 120) positives.push('Low sodium content.');
-  if (nutrition.saturatedFat != null && nutrition.saturatedFat < 1) positives.push('Low saturated fat.');
-  if (ingredientAnalysis.some((i) => i.name.toLowerCase().includes('whole grain') || i.name.toLowerCase().includes('whole wheat'))) {
-    positives.push('Contains whole grains.');
+
+  if (
+    nutrition.fiber != null &&
+    nutrition.fiber > 4
+  ) {
+    positives.push(
+      `Good fiber content (${nutrition.fiber}g per 100g).`
+    );
   }
-  const safeCount = ingredientAnalysis.filter((i) => i.classification === 'safe').length;
-  if (ingredientAnalysis.length > 0 && safeCount / ingredientAnalysis.length > 0.7) {
-    positives.push('Most ingredients are clean and recognizable.');
+
+  if (
+    nutrition.protein != null &&
+    nutrition.protein > 8
+  ) {
+    positives.push(
+      `Good protein content (${nutrition.protein}g per 100g).`
+    );
   }
+
+  if (
+    nutrition.sugar != null &&
+    nutrition.sugar < 5
+  ) {
+    positives.push(
+      'Low sugar content.'
+    );
+  }
+
+  if (
+    nutrition.sodium != null &&
+    nutrition.sodium < 120
+  ) {
+    positives.push(
+      'Low sodium content.'
+    );
+  }
+
+  if (
+    nutrition.saturatedFat != null &&
+    nutrition.saturatedFat < 1
+  ) {
+    positives.push(
+      'Low saturated fat.'
+    );
+  }
+
+  if (
+    ingredientAnalysis.some(
+      (item) =>
+        item.name
+          .toLowerCase()
+          .includes(
+            'whole grain'
+          ) ||
+        item.name
+          .toLowerCase()
+          .includes(
+            'whole wheat'
+          )
+    )
+  ) {
+    positives.push(
+      'Contains whole grains.'
+    );
+  }
+
+  const safeCount =
+    ingredientAnalysis.filter(
+      (item) =>
+        item.classification === 'safe'
+    ).length;
+
+  if (
+    ingredientAnalysis.length > 0 &&
+    safeCount /
+      ingredientAnalysis.length >
+      0.7
+  ) {
+    positives.push(
+      'Most recognized ingredients have a favorable classification.'
+    );
+  }
+
   return positives;
 }
 
@@ -435,19 +1231,70 @@ export function analyzeProduct(
   ingredients: string[],
   nutrition: NutritionFacts
 ): AnalysisResult {
-  const ingredientAnalysis = ingredients
-    .filter((i) => i.trim().length > 0)
-    .map(classifyIngredient);
+  const cleanIngredients =
+    ingredients
+      .map(
+        (ingredient) =>
+          ingredient.trim()
+      )
+      .filter(
+        (ingredient) =>
+          ingredient.length > 0
+      );
 
-  const allergens = detectAllergens(ingredients);
-  const additives = ingredientAnalysis
-    .filter((i) => i.isAdditive || i.classification === 'harmful')
-    .map((i) => i.name);
-  const { score, breakdown } = computeHealthScore(nutrition, ingredientAnalysis);
-  const foodGrade = scoreToGrade(score);
-  const recommendations = generateRecommendations(nutrition, ingredientAnalysis, allergens);
-  const warnings = generateWarnings(nutrition, ingredientAnalysis, allergens);
-  const positives = generatePositives(nutrition, ingredientAnalysis);
+  const ingredientAnalysis =
+    cleanIngredients.map(
+      classifyIngredient
+    );
+
+  const allergens =
+    detectAllergens(
+      cleanIngredients
+    );
+
+  const additives =
+    ingredientAnalysis
+      .filter(
+        (item) =>
+          item.isAdditive ||
+          item.classification ===
+            'harmful'
+      )
+      .map(
+        (item) => item.name
+      );
+
+  const {
+    score,
+    breakdown,
+  } =
+    computeHealthScore(
+      nutrition,
+      ingredientAnalysis
+    );
+
+  const foodGrade =
+    scoreToGrade(score);
+
+  const recommendations =
+    generateRecommendations(
+      nutrition,
+      ingredientAnalysis,
+      allergens
+    );
+
+  const warnings =
+    generateWarnings(
+      nutrition,
+      ingredientAnalysis,
+      allergens
+    );
+
+  const positives =
+    generatePositives(
+      nutrition,
+      ingredientAnalysis
+    );
 
   return {
     healthScore: score,
@@ -462,9 +1309,26 @@ export function analyzeProduct(
   };
 }
 
-export function parseIngredients(raw: string): string[] {
+export function parseIngredients(
+  raw: string
+): string[] {
+  if (!raw.trim()) {
+    return [];
+  }
+
   return raw
-    .split(/[,;()]/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 1 && s.length < 60);
+    .replace(/\([^)]*\)/g, (match) =>
+      match
+        .slice(1, -1)
+        .replace(/[,;]/g, ' ')
+    )
+    .split(/[,;]+/)
+    .map(
+      (item) => item.trim()
+    )
+    .filter(
+      (item) =>
+        item.length > 1 &&
+        item.length < 100
+    );
 }
