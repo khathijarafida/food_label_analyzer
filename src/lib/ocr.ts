@@ -60,7 +60,14 @@ export async function runOCR(imageDataUrl: string): Promise<OCRResult> {
   nutrition.carbs = num([/total\s*carbohydrate[s]?\s*[:\s]*(\d+(?:\.\d+)?)\s*g/, /carbohydrate[s]?\s*[:\s]*(\d+(?:\.\d+)?)\s*g/]);
 
   let ingredients: string[] = [];
-  const ingMatch = rawText.match(/ingredients?:?([^\n]+(?:\n[^\n]+)*)/i);
+
+  // Bounded capture: stop at the next label section instead of running
+  // to the end of the OCR text (this was swallowing nutrition/allergen/
+  // manufacturer text as "ingredients" before).
+  const ingMatch = rawText.match(
+    /ingredients?:?\s*([\s\S]*?)(?=\n\s*(nutrition\s*facts|nutrition\s*information|allergen|contains\s*:|may\s*contain|manufactured|distributed|packed\s*by|best\s*before|expiry|net\s*wt|net\s*weight|batch\s*no|barcode|storage)|$)/i
+  );
+
   if (ingMatch) {
     ingredients = parseIngredients(ingMatch[1]);
   }

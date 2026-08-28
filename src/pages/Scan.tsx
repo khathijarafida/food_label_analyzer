@@ -284,10 +284,37 @@ export default function Scan() {
       }
     };
 
-    // Wait until React has rendered the scanner container.
-    const timer = window.setTimeout(() => {
-      void startCamera();
-    }, 200);
+    // Poll until React has actually rendered the scanner container,
+    // instead of trusting a single fixed delay (AnimatePresence's exit
+    // transition can push the mount later than 200ms on slower devices).
+    let attempts = 0;
+    const maxAttempts = 40; // 40 * 50ms = 2s max wait
+
+    const tryStart = () => {
+      if (cancelled) return;
+
+      const el = document.getElementById('barcode-scanner-region');
+
+      if (el) {
+        void startCamera();
+        return;
+      }
+
+      attempts += 1;
+
+      if (attempts >= maxAttempts) {
+        setScanning(false);
+        setStatus('');
+        setError(
+          'Could not initialize the camera view. Please try again.'
+        );
+        return;
+      }
+
+      window.setTimeout(tryStart, 50);
+    };
+
+    const timer = window.setTimeout(tryStart, 50);
 
     return () => {
       cancelled = true;
