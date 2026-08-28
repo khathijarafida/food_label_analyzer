@@ -967,6 +967,26 @@ export function analyzeProduct(
   };
 }
 
+function looksLikeIngredient(item: string): boolean {
+  const letters = item.replace(/[^a-zA-Z]/g, '').length;
+  if (letters === 0) return false;
+  if (letters / item.length < 0.6) return false;
+
+  const isShort = item.length <= 5;
+  const upperRatio = item.replace(/[^A-Z]/g, '').length / letters;
+  if (!isShort && upperRatio > 0.8) return false;
+
+  if (/[»\\|~^_{}[\]#$%£@]/.test(item)) return false;
+
+  const words = item.split(/\s+/).filter(Boolean);
+  const shortWordRatio =
+    words.filter((w) => w.replace(/[^a-zA-Z]/g, '').length <= 2).length /
+    words.length;
+  if (words.length > 2 && shortWordRatio > 0.5) return false;
+
+  return true;
+}
+
 export function parseIngredients(raw: string): string[] {
   if (!raw.trim()) {
     return [];
@@ -981,6 +1001,7 @@ export function parseIngredients(raw: string): string[] {
     .filter(
       (item) =>
         item.length > 1 &&
-        item.length < 100
+        item.length < 100 &&
+        looksLikeIngredient(item)
     );
 }
