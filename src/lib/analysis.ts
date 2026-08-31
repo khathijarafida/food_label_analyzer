@@ -1,5 +1,5 @@
 export type IngredientClass = 'safe' | 'moderate' | 'harmful';
-
+ 
 export interface IngredientInfo {
   name: string;
   classification: IngredientClass;
@@ -7,7 +7,7 @@ export interface IngredientInfo {
   isAdditive: boolean;
   isArtificial: boolean;
 }
-
+ 
 export interface NutritionFacts {
   calories?: number;
   servingSize?: string;
@@ -24,7 +24,7 @@ export interface NutritionFacts {
   vitamins?: Record<string, number>;
   minerals?: Record<string, number>;
 }
-
+ 
 export interface AnalysisResult {
   healthScore: number;
   foodGrade: string;
@@ -46,7 +46,7 @@ export interface AnalysisResult {
     max: number;
   }[];
 }
-
+ 
 export const ALLERGENS = [
   'milk',
   'egg',
@@ -64,7 +64,7 @@ export const ALLERGENS = [
   'sulphite',
   'lupin',
 ] as const;
-
+ 
 const ALLERGEN_ALIASES: Record<string, string[]> = {
   milk: [
     'milk',
@@ -144,7 +144,7 @@ const ALLERGEN_ALIASES: Record<string, string[]> = {
   ],
   sesame: ['sesame', 'sesame oil', 'tahini', 'sesamum'],
 };
-
+ 
 const HARMFUL_INGREDIENTS: Record<string, string> = {
   'high fructose corn syrup':
     'High in added sugar and should be limited as part of a balanced diet.',
@@ -201,7 +201,7 @@ const HARMFUL_INGREDIENTS: Record<string, string> = {
   'aluminum lake':
     'Color additive containing aluminum and used in processed foods.',
 };
-
+ 
 const MODERATE_INGREDIENTS: Record<string, string> = {
   sugar:
     'Added sugar. Excessive intake can contribute to excess calorie intake and dental problems.',
@@ -252,7 +252,7 @@ const MODERATE_INGREDIENTS: Record<string, string> = {
     'Common emulsifier. Soy-sensitive individuals should check allergen labeling.',
   lecithin: 'Common emulsifier used in many processed foods.',
 };
-
+ 
 const SAFE_INGREDIENTS: Record<string, string> = {
   water: 'Essential and naturally present in many foods.',
   'whole grain':
@@ -319,7 +319,7 @@ const SAFE_INGREDIENTS: Record<string, string> = {
   magnesium: 'Essential mineral involved in many body processes.',
   zinc: 'Essential mineral involved in immune function and metabolism.',
 };
-
+ 
 function normalize(value: string): string {
   return value
     .toLowerCase()
@@ -327,18 +327,18 @@ function normalize(value: string): string {
     .replace(/[.,;:()[\]{}]/g, ' ')
     .replace(/\s+/g, ' ');
 }
-
+ 
 function containsIngredient(ingredient: string, key: string): boolean {
   const text = ` ${normalize(ingredient)} `;
   const target = ` ${normalize(key)} `;
-
+ 
   return text.includes(target);
 }
-
+ 
 function classifyIngredient(raw: string): IngredientInfo {
   const cleanName = raw.trim();
   const name = normalize(cleanName);
-
+ 
   if (!name) {
     return {
       name: cleanName,
@@ -348,7 +348,7 @@ function classifyIngredient(raw: string): IngredientInfo {
       isArtificial: false,
     };
   }
-
+ 
   for (const [key, reason] of Object.entries(HARMFUL_INGREDIENTS)) {
     if (containsIngredient(name, key)) {
       return {
@@ -363,7 +363,7 @@ function classifyIngredient(raw: string): IngredientInfo {
       };
     }
   }
-
+ 
   for (const [key, reason] of Object.entries(MODERATE_INGREDIENTS)) {
     if (containsIngredient(name, key)) {
       return {
@@ -378,7 +378,7 @@ function classifyIngredient(raw: string): IngredientInfo {
       };
     }
   }
-
+ 
   for (const [key, reason] of Object.entries(SAFE_INGREDIENTS)) {
     if (containsIngredient(name, key)) {
       return {
@@ -390,7 +390,7 @@ function classifyIngredient(raw: string): IngredientInfo {
       };
     }
   }
-
+ 
   return {
     name: cleanName,
     classification: 'moderate',
@@ -400,25 +400,25 @@ function classifyIngredient(raw: string): IngredientInfo {
     isArtificial: false,
   };
 }
-
+ 
 function detectAllergens(ingredients: string[]): string[] {
   const found = new Set<string>();
-
+ 
   const text = ingredients.map(normalize).join(' ');
-
+ 
   for (const [allergen, aliases] of Object.entries(ALLERGEN_ALIASES)) {
     const detected = aliases.some((alias) =>
       text.includes(normalize(alias))
     );
-
+ 
     if (detected) {
       found.add(allergen);
     }
   }
-
+ 
   return [...found];
 }
-
+ 
 function computeHealthScore(
   nutrition: NutritionFacts,
   ingredientAnalysis: IngredientInfo[]
@@ -435,46 +435,46 @@ function computeHealthScore(
     points: number;
     max: number;
   }[] = [];
-
+ 
   let score = 50;
-
+ 
   const harmful = ingredientAnalysis.filter(
     (item) => item.classification === 'harmful'
   ).length;
-
+ 
   const moderate = ingredientAnalysis.filter(
     (item) => item.classification === 'moderate'
   ).length;
-
+ 
   const safe = ingredientAnalysis.filter(
     (item) => item.classification === 'safe'
   ).length;
-
+ 
   let ingredientPoints = 0;
-
+ 
   ingredientPoints -= Math.min(harmful * 8, 24);
   ingredientPoints -= Math.min(moderate * 2, 12);
-
+ 
   if (
     ingredientAnalysis.length > 0 &&
     safe / ingredientAnalysis.length >= 0.7
   ) {
     ingredientPoints += 10;
   }
-
+ 
   ingredientPoints = Math.max(-30, Math.min(10, ingredientPoints));
-
+ 
   breakdown.push({
     label: 'Ingredients',
     points: ingredientPoints,
     max: 10,
   });
-
+ 
   score += ingredientPoints;
-
+ 
   if (nutrition.sodium != null) {
     let points = 0;
-
+ 
     if (nutrition.sodium > 800) {
       points = -12;
     } else if (nutrition.sodium > 500) {
@@ -484,19 +484,19 @@ function computeHealthScore(
     } else if (nutrition.sodium < 120) {
       points = 5;
     }
-
+ 
     breakdown.push({
       label: 'Sodium',
       points,
       max: 5,
     });
-
+ 
     score += points;
   }
-
+ 
   if (nutrition.sugar != null) {
     let points = 0;
-
+ 
     if (nutrition.sugar > 25) {
       points = -15;
     } else if (nutrition.sugar > 15) {
@@ -506,19 +506,19 @@ function computeHealthScore(
     } else if (nutrition.sugar < 5) {
       points = 5;
     }
-
+ 
     breakdown.push({
       label: 'Sugar',
       points,
       max: 5,
     });
-
+ 
     score += points;
   }
-
+ 
   if (nutrition.addedSugar != null) {
     let points = 0;
-
+ 
     if (nutrition.addedSugar > 15) {
       points = -10;
     } else if (nutrition.addedSugar > 8) {
@@ -528,19 +528,19 @@ function computeHealthScore(
     } else if (nutrition.addedSugar === 0) {
       points = 5;
     }
-
+ 
     breakdown.push({
       label: 'Added Sugar',
       points,
       max: 5,
     });
-
+ 
     score += points;
   }
-
+ 
   if (nutrition.saturatedFat != null) {
     let points = 0;
-
+ 
     if (nutrition.saturatedFat > 5) {
       points = -10;
     } else if (nutrition.saturatedFat > 3) {
@@ -550,31 +550,53 @@ function computeHealthScore(
     } else {
       points = 4;
     }
-
+ 
     breakdown.push({
       label: 'Saturated Fat',
       points,
       max: 4,
     });
-
+ 
     score += points;
   }
-
+ 
   if (nutrition.transFat != null) {
     const points = nutrition.transFat > 0 ? -12 : 5;
-
+ 
     breakdown.push({
       label: 'Trans Fat',
       points,
       max: 5,
     });
-
+ 
     score += points;
   }
-
+ 
+  if (nutrition.cholesterol != null) {
+    let points = 0;
+ 
+    if (nutrition.cholesterol > 100) {
+      points = -8;
+    } else if (nutrition.cholesterol > 60) {
+      points = -4;
+    } else if (nutrition.cholesterol > 20) {
+      points = -1;
+    } else {
+      points = 3;
+    }
+ 
+    breakdown.push({
+      label: 'Cholesterol',
+      points,
+      max: 3,
+    });
+ 
+    score += points;
+  }
+ 
   if (nutrition.fiber != null) {
     let points = 0;
-
+ 
     if (nutrition.fiber > 6) {
       points = 8;
     } else if (nutrition.fiber > 3) {
@@ -582,19 +604,19 @@ function computeHealthScore(
     } else if (nutrition.fiber < 1) {
       points = -3;
     }
-
+ 
     breakdown.push({
       label: 'Fiber',
       points,
       max: 8,
     });
-
+ 
     score += points;
   }
-
+ 
   if (nutrition.protein != null) {
     let points = 0;
-
+ 
     if (nutrition.protein > 15) {
       points = 8;
     } else if (nutrition.protein > 8) {
@@ -602,19 +624,19 @@ function computeHealthScore(
     } else if (nutrition.protein > 5) {
       points = 2;
     }
-
+ 
     breakdown.push({
       label: 'Protein',
       points,
       max: 8,
     });
-
+ 
     score += points;
   }
-
+ 
   if (nutrition.calories != null) {
     let points = 0;
-
+ 
     if (nutrition.calories > 500) {
       points = -8;
     } else if (nutrition.calories > 400) {
@@ -624,43 +646,44 @@ function computeHealthScore(
     } else if (nutrition.calories < 150) {
       points = 3;
     }
-
+ 
     breakdown.push({
       label: 'Calories',
       points,
       max: 3,
     });
-
+ 
     score += points;
   }
-
+ 
   const availableNutrition = [
     nutrition.sodium,
     nutrition.sugar,
     nutrition.addedSugar,
     nutrition.saturatedFat,
     nutrition.transFat,
+    nutrition.cholesterol,
     nutrition.fiber,
     nutrition.protein,
     nutrition.calories,
   ].filter((value) => value != null).length;
-
+ 
   if (availableNutrition === 0) {
     score -= 10;
-
+ 
     breakdown.push({
       label: 'Nutrition Data',
       points: -10,
       max: 0,
     });
   }
-
+ 
   return {
     score: Math.max(0, Math.min(100, Math.round(score))),
     breakdown,
   };
 }
-
+ 
 function scoreToGrade(score: number): string {
   if (score >= 90) return 'A+';
   if (score >= 80) return 'A';
@@ -669,7 +692,7 @@ function scoreToGrade(score: number): string {
   if (score >= 45) return 'D';
   return 'F';
 }
-
+ 
 function generateRecommendations(
   nutrition: NutritionFacts,
   ingredientAnalysis: IngredientInfo[],
@@ -688,28 +711,32 @@ function generateRecommendations(
       reason: string;
     }
   > = {};
-
+ 
   const harmful = ingredientAnalysis.filter(
     (item) => item.classification === 'harmful'
   );
-
+ 
   const sugar = nutrition.sugar ?? 0;
   const addedSugar = nutrition.addedSugar ?? nutrition.sugar ?? 0;
   const sodium = nutrition.sodium ?? 0;
   const saturatedFat = nutrition.saturatedFat ?? 0;
   const transFat = nutrition.transFat ?? 0;
+  const cholesterol = nutrition.cholesterol ?? 0;
+  const carbs = nutrition.carbs ?? 0;
   const fiber = nutrition.fiber ?? 0;
   const protein = nutrition.protein ?? 0;
   const calories = nutrition.calories ?? 0;
-
+ 
   recommendations.diabetic = {
-    suitable: addedSugar < 8 && sugar < 12,
+    suitable: addedSugar < 8 && sugar < 12 && carbs < 30,
     reason:
       addedSugar >= 8 || sugar >= 12
         ? `This product contains ${sugar}g of sugar per 100g. Consider a lower-sugar option.`
-        : 'Sugar content is relatively low. Portion size should still be considered.',
+        : carbs >= 30
+          ? `This product contains ${carbs}g of total carbohydrates per 100g.`
+          : 'Sugar and carbohydrate content are relatively low. Portion size should still be considered.',
   };
-
+ 
   recommendations.weight_loss = {
     suitable: calories < 250 && sugar < 10 && fiber > 2,
     reason:
@@ -721,7 +748,7 @@ function generateRecommendations(
             ? 'Fiber content is relatively low for a weight-management food.'
             : 'Lower calorie and sugar content with useful fiber.',
   };
-
+ 
   recommendations.gym = {
     suitable: protein > 8 && sugar < 15,
     reason:
@@ -729,13 +756,13 @@ function generateRecommendations(
         ? `Protein is ${protein}g per 100g. Higher-protein foods may be more useful for muscle recovery.`
         : `Provides ${protein}g protein per 100g and may support protein intake.`,
   };
-
+ 
   const artificialConcern = harmful.some((item) =>
     /dye|color|red|yellow|blue|aspartame|acesulfame|sucralose/i.test(
       item.name
     )
   );
-
+ 
   recommendations.kid = {
     suitable: !artificialConcern && sugar < 12,
     reason: artificialConcern
@@ -744,30 +771,36 @@ function generateRecommendations(
         ? `Sugar is ${sugar}g per 100g, which is relatively high.`
         : 'No major flagged artificial-color or sweetener concern was detected.',
   };
-
+ 
   const pregnancyConcern = harmful.some((item) =>
     /nitrite|nitrate|bromat|aspartame|acesulfame|saccharin/i.test(
       item.name
     )
   );
-
+ 
   recommendations.pregnant = {
     suitable: !pregnancyConcern,
     reason: pregnancyConcern
       ? 'Some ingredients in this product may require additional dietary consideration during pregnancy.'
       : 'No pregnancy-specific flagged ingredients were detected.',
   };
-
+ 
   recommendations.heart_patient = {
-    suitable: sodium < 400 && saturatedFat < 3 && transFat === 0,
+    suitable:
+      sodium < 400 &&
+      saturatedFat < 3 &&
+      transFat === 0 &&
+      cholesterol < 60,
     reason:
       transFat > 0
         ? 'Contains trans fat, which should be avoided as much as possible.'
-        : sodium >= 400 || saturatedFat >= 3
-          ? `This product has ${sodium}mg sodium and ${saturatedFat}g saturated fat per 100g.`
-          : 'Relatively low sodium and saturated fat with no detected trans fat.',
+        : cholesterol >= 60
+          ? `This product has ${cholesterol}mg cholesterol per 100g.`
+          : sodium >= 400 || saturatedFat >= 3
+            ? `This product has ${sodium}mg sodium and ${saturatedFat}g saturated fat per 100g.`
+            : 'Relatively low sodium, saturated fat, and cholesterol with no detected trans fat.',
   };
-
+ 
   recommendations.high_bp = {
     suitable: sodium < 300,
     reason:
@@ -775,7 +808,7 @@ function generateRecommendations(
         ? `Sodium is ${sodium}mg per 100g. A lower-sodium product may be preferable.`
         : `Sodium is ${sodium}mg per 100g.`,
   };
-
+ 
   recommendations.allergen_safe = {
     suitable: allergens.length === 0,
     reason:
@@ -783,39 +816,39 @@ function generateRecommendations(
         ? `Detected allergens: ${allergens.join(', ')}.`
         : 'No listed allergens were detected in the ingredient text.',
   };
-
+ 
   return recommendations;
 }
-
+ 
 function generateWarnings(
   nutrition: NutritionFacts,
   ingredientAnalysis: IngredientInfo[],
   allergens: string[]
 ): string[] {
   const warnings: string[] = [];
-
+ 
   if (nutrition.transFat != null && nutrition.transFat > 0) {
     warnings.push('Contains trans fat.');
   }
-
+ 
   if (nutrition.sodium != null && nutrition.sodium > 800) {
     warnings.push(
       `Very high sodium (${nutrition.sodium}mg per 100g).`
     );
   }
-
+ 
   if (nutrition.sugar != null && nutrition.sugar > 20) {
     warnings.push(
       `High sugar content (${nutrition.sugar}g per 100g).`
     );
   }
-
+ 
   if (nutrition.addedSugar != null && nutrition.addedSugar > 15) {
     warnings.push(
       `High added sugar (${nutrition.addedSugar}g per 100g).`
     );
   }
-
+ 
   if (
     nutrition.saturatedFat != null &&
     nutrition.saturatedFat > 5
@@ -824,66 +857,76 @@ function generateWarnings(
       `High saturated fat (${nutrition.saturatedFat}g per 100g).`
     );
   }
-
+ 
+  if (nutrition.cholesterol != null && nutrition.cholesterol > 100) {
+    warnings.push(
+      `High cholesterol (${nutrition.cholesterol}mg per 100g).`
+    );
+  }
+ 
   if (allergens.length > 0) {
     warnings.push(
       `Detected allergens: ${allergens.join(', ')}.`
     );
   }
-
+ 
   const harmful = ingredientAnalysis.filter(
     (item) => item.classification === 'harmful'
   );
-
+ 
   if (harmful.length > 0) {
     const names = harmful.map((item) => item.name);
-
+ 
     warnings.push(
       `Flagged ingredients: ${names.slice(0, 3).join(', ')}${
         names.length > 3 ? '…' : ''
       }`
     );
   }
-
+ 
   return warnings;
 }
-
+ 
 function generatePositives(
   nutrition: NutritionFacts,
   ingredientAnalysis: IngredientInfo[]
 ): string[] {
   const positives: string[] = [];
-
+ 
   if (nutrition.fiber != null && nutrition.fiber > 4) {
     positives.push(
       `Good fiber content (${nutrition.fiber}g per 100g).`
     );
   }
-
+ 
   if (nutrition.protein != null && nutrition.protein > 8) {
     positives.push(
       `Good protein content (${nutrition.protein}g per 100g).`
     );
   }
-
+ 
   if (nutrition.sugar != null && nutrition.sugar < 5) {
     positives.push('Low sugar content.');
   }
-
+ 
   if (nutrition.sodium != null && nutrition.sodium < 120) {
     positives.push('Low sodium content.');
   }
-
+ 
   if (
     nutrition.saturatedFat != null &&
     nutrition.saturatedFat < 1
   ) {
     positives.push('Low saturated fat.');
   }
-
+ 
+  if (nutrition.cholesterol != null && nutrition.cholesterol < 20) {
+    positives.push('Low cholesterol.');
+  }
+ 
   if (ingredientAnalysis.some((item) => {
     const name = item.name.toLowerCase();
-
+ 
     return (
       name.includes('whole grain') ||
       name.includes('whole wheat')
@@ -891,11 +934,11 @@ function generatePositives(
   })) {
     positives.push('Contains whole grains.');
   }
-
+ 
   const safeCount = ingredientAnalysis.filter(
     (item) => item.classification === 'safe'
   ).length;
-
+ 
   if (
     ingredientAnalysis.length > 0 &&
     safeCount / ingredientAnalysis.length > 0.7
@@ -904,10 +947,10 @@ function generatePositives(
       'Most recognized ingredients have a favorable classification.'
     );
   }
-
+ 
   return positives;
 }
-
+ 
 export function analyzeProduct(
   ingredients: string[],
   nutrition: NutritionFacts
@@ -915,13 +958,13 @@ export function analyzeProduct(
   const cleanIngredients = ingredients
     .map((ingredient) => ingredient.trim())
     .filter((ingredient) => ingredient.length > 0);
-
+ 
   const ingredientAnalysis = cleanIngredients.map(
     classifyIngredient
   );
-
+ 
   const allergens = detectAllergens(cleanIngredients);
-
+ 
   const additives = ingredientAnalysis
     .filter(
       (item) =>
@@ -929,31 +972,31 @@ export function analyzeProduct(
         item.classification === 'harmful'
     )
     .map((item) => item.name);
-
+ 
   const { score, breakdown } = computeHealthScore(
     nutrition,
     ingredientAnalysis
   );
-
+ 
   const foodGrade = scoreToGrade(score);
-
+ 
   const recommendations = generateRecommendations(
     nutrition,
     ingredientAnalysis,
     allergens
   );
-
+ 
   const warnings = generateWarnings(
     nutrition,
     ingredientAnalysis,
     allergens
   );
-
+ 
   const positives = generatePositives(
     nutrition,
     ingredientAnalysis
   );
-
+ 
   return {
     healthScore: score,
     foodGrade,
@@ -966,32 +1009,32 @@ export function analyzeProduct(
     scoreBreakdown: breakdown,
   };
 }
-
+ 
 function looksLikeIngredient(item: string): boolean {
   const letters = item.replace(/[^a-zA-Z]/g, '').length;
   if (letters === 0) return false;
   if (letters / item.length < 0.6) return false;
-
+ 
   const isShort = item.length <= 5;
   const upperRatio = item.replace(/[^A-Z]/g, '').length / letters;
   if (!isShort && upperRatio > 0.8) return false;
-
+ 
   if (/[»\\|~^_{}[\]#$%£@]/.test(item)) return false;
-
+ 
   const words = item.split(/\s+/).filter(Boolean);
   const shortWordRatio =
     words.filter((w) => w.replace(/[^a-zA-Z]/g, '').length <= 2).length /
     words.length;
   if (words.length > 2 && shortWordRatio > 0.5) return false;
-
+ 
   return true;
 }
-
+ 
 export function parseIngredients(raw: string): string[] {
   if (!raw.trim()) {
     return [];
   }
-
+ 
   return raw
     .replace(/\([^)]*\)/g, (match) =>
       match.slice(1, -1).replace(/[,;]/g, ' ')
@@ -1005,3 +1048,4 @@ export function parseIngredients(raw: string): string[] {
         looksLikeIngredient(item)
     );
 }
+ 
