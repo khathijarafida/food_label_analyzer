@@ -1029,23 +1029,21 @@ function looksLikeIngredient(item: string): boolean {
  
   return true;
 }
- 
-export function parseIngredients(raw: string): string[] {
+ export function parseIngredients(raw: string): string[] {
   if (!raw.trim()) {
     return [];
   }
- 
-  return raw
+
+  const candidates = raw
     .replace(/\([^)]*\)/g, (match) =>
       match.slice(1, -1).replace(/[,;]/g, ' ')
     )
     .split(/[,;]+/)
     .map((item) => item.trim())
-    .filter(
-      (item) =>
-        item.length > 1 &&
-        item.length < 100 &&
-        looksLikeIngredient(item)
-    );
+    .filter((item) => item.length > 1 && item.length < 100);
+
+  console.log('RAW CANDIDATES:', candidates);
+  console.log('AFTER FILTER:', candidates.filter(looksLikeIngredient));
+
+  return candidates.filter(looksLikeIngredient);
 }
- 
