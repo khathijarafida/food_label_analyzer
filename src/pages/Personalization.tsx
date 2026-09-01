@@ -6,6 +6,8 @@ import {
   AlertTriangle,
   Save,
   Check,
+  Globe,
+  X,
 } from 'lucide-react';
 
 const dietOptions = [
@@ -16,13 +18,25 @@ const dietOptions = [
   'Non-Vegetarian',
 ];
 
+const activityLevelOptions = [
+  'Sedentary',
+  'Lightly Active',
+  'Moderately Active',
+  'Very Active',
+];
+
 const goalOptions = [
-  'Healthy Eating',
   'Weight Management',
   'Muscle Gain',
+  'Healthy Eating',
+  'Heart Health',
+  'Blood Sugar Management',
+  'Better Hydration',
+  'High Protein',
   'Low Sugar',
   'Low Sodium',
-  'High Protein',
+  'High Fiber',
+  'Lower Calories',
 ];
 
 const restrictionOptions = [
@@ -33,22 +47,62 @@ const restrictionOptions = [
   'No Added Sugar',
 ];
 
+const foodPreferenceOptions = [
+  'No Preference',
+  'North Indian',
+  'South Indian',
+  'Indo-Chinese',
+  'Continental',
+  'Italian',
+  'Mexican',
+  'Mediterranean',
+  'Thai',
+  'Street Food',
+];
+
+const languageOptions = [
+  'English',
+  'Hindi',
+  'Kannada',
+  'Tamil',
+  'Telugu',
+  'Malayalam',
+  'Marathi',
+  'Bengali',
+  'Gujarati',
+  'Punjabi',
+];
+
 interface Preferences {
   name: string;
   age: string;
+  height: string;
+  weight: string;
+  activityLevel: string;
+  preferredLanguage: string;
+  countryRegion: string;
   diet: string;
-  goal: string;
-  restriction: string;
+  goals: string[];
+  restrictions: string[];
   allergy: string;
+  foodPreferences: string[];
+  foodsToAvoid: string[];
 }
 
 const defaultPreferences: Preferences = {
   name: '',
   age: '',
+  height: '',
+  weight: '',
+  activityLevel: 'Sedentary',
+  preferredLanguage: 'English',
+  countryRegion: '',
   diet: 'No Preference',
-  goal: 'Healthy Eating',
-  restriction: 'No Restrictions',
+  goals: [],
+  restrictions: ['No Restrictions'],
   allergy: '',
+  foodPreferences: [],
+  foodsToAvoid: [],
 };
 
 export default function Personalization() {
@@ -56,22 +110,45 @@ export default function Personalization() {
     useState<Preferences>(defaultPreferences);
 
   const [saved, setSaved] = useState(false);
+  const [avoidInput, setAvoidInput] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('foodAnalyzerPreferences');
 
     if (stored) {
       try {
-        setPreferences(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        // Merge with defaults so older saved data (single-select
+        // goal/restriction, missing new fields) doesn't break the UI.
+        setPreferences({
+          ...defaultPreferences,
+          ...parsed,
+          goals: Array.isArray(parsed.goals)
+            ? parsed.goals
+            : parsed.goal
+            ? [parsed.goal]
+            : [],
+          restrictions: Array.isArray(parsed.restrictions)
+            ? parsed.restrictions
+            : parsed.restriction
+            ? [parsed.restriction]
+            : ['No Restrictions'],
+          foodPreferences: Array.isArray(parsed.foodPreferences)
+            ? parsed.foodPreferences
+            : [],
+          foodsToAvoid: Array.isArray(parsed.foodsToAvoid)
+            ? parsed.foodsToAvoid
+            : [],
+        });
       } catch {
         localStorage.removeItem('foodAnalyzerPreferences');
       }
     }
   }, []);
 
-  const updatePreference = (
-    field: keyof Preferences,
-    value: string
+  const updatePreference = <K extends keyof Preferences>(
+    field: K,
+    value: Preferences[K]
   ) => {
     setPreferences((prev) => ({
       ...prev,
@@ -79,6 +156,58 @@ export default function Personalization() {
     }));
 
     setSaved(false);
+  };
+
+  // Toggle a value inside a multi-select array field.
+  const toggleMultiValue = (
+    field: 'goals' | 'restrictions' | 'foodPreferences',
+    option: string
+  ) => {
+    setPreferences((prev) => {
+      const current = prev[field];
+
+      // "No Restrictions" / "No Preference" behave as exclusive
+      // choices: picking them clears everything else, and picking
+      // anything else clears them.
+      const exclusiveValues = ['No Restrictions', 'No Preference'];
+
+      let next: string[];
+
+      if (exclusiveValues.includes(option)) {
+        next = current.includes(option) ? [] : [option];
+      } else if (current.includes(option)) {
+        next = current.filter((item) => item !== option);
+      } else {
+        next = [...current.filter((item) => !exclusiveValues.includes(item)), option];
+      }
+
+      return { ...prev, [field]: next };
+    });
+
+    setSaved(false);
+  };
+
+  const addFoodToAvoid = () => {
+    const value = avoidInput.trim();
+
+    if (!value) return;
+
+    if (
+      !preferences.foodsToAvoid.some(
+        (item) => item.toLowerCase() === value.toLowerCase()
+      )
+    ) {
+      updatePreference('foodsToAvoid', [...preferences.foodsToAvoid, value]);
+    }
+
+    setAvoidInput('');
+  };
+
+  const removeFoodToAvoid = (item: string) => {
+    updatePreference(
+      'foodsToAvoid',
+      preferences.foodsToAvoid.filter((food) => food !== item)
+    );
   };
 
   const handleSave = () => {
@@ -117,9 +246,9 @@ export default function Personalization() {
           </div>
 
           <p className="max-w-2xl text-sm leading-6 text-slate-500">
-            Tell us about your diet, health goals, and dietary
-            restrictions. We'll use these preferences to provide
-            more personalized food recommendations.
+            Tell us about yourself, your diet, health goals, and dietary
+            restrictions. We'll use these preferences to provide more
+            personalized food recommendations.
           </p>
         </div>
 
@@ -175,6 +304,105 @@ export default function Personalization() {
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
               />
             </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Height (cm)
+              </label>
+
+              <input
+                type="number"
+                min="1"
+                value={preferences.height}
+                onChange={(e) =>
+                  updatePreference('height', e.target.value)
+                }
+                placeholder="e.g. 170"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Weight (kg)
+              </label>
+
+              <input
+                type="number"
+                min="1"
+                value={preferences.weight}
+                onChange={(e) =>
+                  updatePreference('weight', e.target.value)
+                }
+                placeholder="e.g. 65"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Preferred Language
+              </label>
+
+              <select
+                value={preferences.preferredLanguage}
+                onChange={(e) =>
+                  updatePreference('preferredLanguage', e.target.value)
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+              >
+                {languageOptions.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Country/Region
+              </label>
+
+              <input
+                type="text"
+                value={preferences.countryRegion}
+                onChange={(e) =>
+                  updatePreference('countryRegion', e.target.value)
+                }
+                placeholder="e.g. Karnataka, India"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+              />
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Activity Level
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {activityLevelOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() =>
+                    updatePreference('activityLevel', option)
+                  }
+                  className={`rounded-xl border p-4 text-left text-sm font-medium transition ${
+                    preferences.activityLevel === option
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-slate-200 text-slate-700 hover:border-purple-300'
+                  }`}
+                >
+                  {option}
+
+                  {preferences.activityLevel === option && (
+                    <Check className="float-right h-5 w-5" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -220,6 +448,46 @@ export default function Personalization() {
           </div>
         </section>
 
+        {/* Food Preferences (cuisine) */}
+        <section className="mb-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50">
+              <Globe className="h-5 w-5 text-purple-600" />
+            </div>
+
+            <div>
+              <h2 className="font-semibold text-slate-800">
+                Food Preferences
+              </h2>
+
+              <p className="text-sm text-slate-500">
+                Select the cuisines you enjoy most (choose any that apply)
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {foodPreferenceOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => toggleMultiValue('foodPreferences', option)}
+                className={`rounded-xl border p-4 text-left text-sm font-medium transition ${
+                  preferences.foodPreferences.includes(option)
+                    ? 'border-purple-500 bg-purple-50 text-purple-700'
+                    : 'border-slate-200 text-slate-700 hover:border-purple-300'
+                }`}
+              >
+                {option}
+
+                {preferences.foodPreferences.includes(option) && (
+                  <Check className="float-right h-5 w-5" />
+                )}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Health Goal */}
         <section className="mb-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center gap-3">
@@ -229,11 +497,11 @@ export default function Personalization() {
 
             <div>
               <h2 className="font-semibold text-slate-800">
-                Health Goal
+                Health Goals
               </h2>
 
               <p className="text-sm text-slate-500">
-                What would you like to focus on?
+                What would you like to focus on? (choose any that apply)
               </p>
             </div>
           </div>
@@ -243,18 +511,16 @@ export default function Personalization() {
               <button
                 key={option}
                 type="button"
-                onClick={() =>
-                  updatePreference('goal', option)
-                }
+                onClick={() => toggleMultiValue('goals', option)}
                 className={`rounded-xl border p-4 text-left text-sm font-medium transition ${
-                  preferences.goal === option
+                  preferences.goals.includes(option)
                     ? 'border-purple-500 bg-purple-50 text-purple-700'
                     : 'border-slate-200 text-slate-700 hover:border-purple-300'
                 }`}
               >
                 {option}
 
-                {preferences.goal === option && (
+                {preferences.goals.includes(option) && (
                   <Check className="float-right h-5 w-5" />
                 )}
               </button>
@@ -275,7 +541,7 @@ export default function Personalization() {
               </h2>
 
               <p className="text-sm text-slate-500">
-                Select restrictions that apply to you
+                Select restrictions that apply to you (choose any that apply)
               </p>
             </div>
           </div>
@@ -285,18 +551,16 @@ export default function Personalization() {
               <button
                 key={option}
                 type="button"
-                onClick={() =>
-                  updatePreference('restriction', option)
-                }
+                onClick={() => toggleMultiValue('restrictions', option)}
                 className={`rounded-xl border p-4 text-left text-sm font-medium transition ${
-                  preferences.restriction === option
+                  preferences.restrictions.includes(option)
                     ? 'border-purple-500 bg-purple-50 text-purple-700'
                     : 'border-slate-200 text-slate-700 hover:border-purple-300'
                 }`}
               >
                 {option}
 
-                {preferences.restriction === option && (
+                {preferences.restrictions.includes(option) && (
                   <Check className="float-right h-5 w-5" />
                 )}
               </button>
@@ -317,6 +581,62 @@ export default function Personalization() {
               placeholder="Example: Soy, shellfish, sesame..."
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
             />
+          </div>
+
+          <div className="mt-5">
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              Foods to Avoid
+            </label>
+
+            <p className="mb-2 text-xs text-slate-500">
+              Type an item and press Enter to add it (e.g. mushrooms, seafood, spicy foods)
+            </p>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={avoidInput}
+                onChange={(e) => setAvoidInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addFoodToAvoid();
+                  }
+                }}
+                placeholder="e.g. mushrooms"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+              />
+
+              <button
+                type="button"
+                onClick={addFoodToAvoid}
+                className="shrink-0 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-purple-300"
+              >
+                Add
+              </button>
+            </div>
+
+            {preferences.foodsToAvoid.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {preferences.foodsToAvoid.map((item) => (
+                  <span
+                    key={item}
+                    className="flex items-center gap-1 rounded-full bg-purple-50 px-3 py-1 text-sm text-purple-700"
+                  >
+                    {item}
+
+                    <button
+                      type="button"
+                      onClick={() => removeFoodToAvoid(item)}
+                      aria-label={`Remove ${item}`}
+                      className="ml-1 rounded-full p-0.5 hover:bg-purple-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
