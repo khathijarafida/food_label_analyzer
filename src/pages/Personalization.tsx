@@ -8,7 +8,11 @@ import {
   Check,
   Globe,
   X,
+  Loader2,
 } from 'lucide-react';
+// NOTE: adjust this import to match your actual Supabase client
+// file's path and export name if it differs.
+import { supabase } from '../lib/supabase';
 
 const dietOptions = [
   'No Preference',
@@ -84,7 +88,7 @@ interface Preferences {
   diet: string;
   goals: string[];
   restrictions: string[];
-  allergy: string;
+  otherAllergies: string[];
   foodPreferences: string[];
   foodsToAvoid: string[];
 }
@@ -100,50 +104,108 @@ const defaultPreferences: Preferences = {
   diet: 'No Preference',
   goals: [],
   restrictions: ['No Restrictions'],
-  allergy: '',
+  otherAllergies: [],
   foodPreferences: [],
   foodsToAvoid: [],
 };
+
+// Maps a `profiles` row from Supabase into the component's shape.
+function fromProfileRow(row: any): Preferences {
+  return {
+    name: row?.full_name ?? '',
+    age: row?.age != null ? String(row.age) : '',
+    height: row?.height_cm != null ? String(row.height_cm) : '',
+    weight: row?.weight_kg != null ? String(row.weight_kg) : '',
+    activityLevel: row?.activity_level ?? 'Sedentary',
+    preferredLanguage: row?.preferred_language ?? 'English',
+    countryRegion: row?.country_region ?? '',
+    diet: row?.diet ?? 'No Preference',
+    goals: Array.isArray(row?.health_goals) ? row.health_goals : [],
+    restrictions: Array.isArray(row?.dietary_restrictions) && row.dietary_restrictions.length
+      ? row.dietary_restrictions
+      : ['No Restrictions'],
+    otherAllergies: Array.isArray(row?.allergies) ? row.allergies : [],
+    foodPreferences: Array.isArray(row?.food_preferences) ? row.food_preferences : [],
+    foodsToAvoid: Array.isArray(row?.foods_to_avoid) ? row.foods_to_avoid : [],
+  };
+}
+
+// Maps the component's state into a `profiles` row for upsert.
+function toProfileRow(userId: string, prefs: Preferences) {
+  return {
+    id: userId,
+    full_name: prefs.name,
+    age: prefs.age ? Number(prefs.age) : null,
+    height_cm: prefs.height ? Number(prefs.height) : null,
+    weight_kg: prefs.weight ? Number(prefs.weight) : null,
+    activity_level: prefs.activityLevel,
+    preferred_language: prefs.preferredLanguage,
+    country_region: prefs.countryRegion,
+    diet: prefs.diet,
+    health_goals: prefs.goals,
+    dietary_restrictions: prefs.restrictions,
+    allergies: prefs.otherAllergies,
+    food_preferences: prefs.foodPreferences,
+    foods_to_avoid: prefs.foodsToAvoid,
+  };
+}
 
 export default function Personalization() {
   const [preferences, setPreferences] =
     useState<Preferences>(defaultPreferences);
 
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [avoidInput, setAvoidInput] = useState('');
+  const [allergyInput, setAllergyInput] = useState('');
 
   useEffect(() => {
-    const stored = localStorage.getItem('foodAnalyzerPreferences');
+    let isMounted = true;
 
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Merge with defaults so older saved data (single-select
-        // goal/restriction, missing new fields) doesn't break the UI.
-        setPreferences({
-          ...defaultPreferences,
-          ...parsed,
-          goals: Array.isArray(parsed.goals)
-            ? parsed.goals
-            : parsed.goal
-            ? [parsed.goal]
-            : [],
-          restrictions: Array.isArray(parsed.restrictions)
-            ? parsed.restrictions
-            : parsed.restriction
-            ? [parsed.restriction]
-            : ['No Restrictions'],
-          foodPreferences: Array.isArray(parsed.foodPreferences)
-            ? parsed.foodPreferences
-            : [],
-          foodsToAvoid: Array.isArray(parsed.foodsToAvoid)
-            ? parsed.foodsToAvoid
-            : [],
-        });
-      } catch {
-        localStorage.removeItem('foodAnalyzerPreferences');
+    const loadProfile = async () => {
+      setLoading(true);
+      setError(null);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        if (isMounted) {
+          setError('You need to be signed in to load your personalization settings.');
+          setLoading(false);
+        }
+        return;
       }
-    }
+
+      if (isMounted) setUserId(user.id);
+
+      const { data, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
+      if (fetchError) {
+        setError('Could not load your saved preferences. You can still fill the form in and save.');
+      } else if (data) {
+        setPreferences(fromProfileRow(data));
+      }
+
+      setLoading(false);
+    };
+
+    loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const updatePreference = <K extends keyof Preferences>(
@@ -187,34 +249,50 @@ export default function Personalization() {
     setSaved(false);
   };
 
-  const addFoodToAvoid = () => {
-    const value = avoidInput.trim();
+  const addTag = (
+    field: 'foodsToAvoid' | 'otherAllergies',
+    value: string,
+    clearInput: () => void
+  ) => {
+    const trimmed = value.trim();
 
-    if (!value) return;
+    if (!trimmed) return;
 
-    if (
-      !preferences.foodsToAvoid.some(
-        (item) => item.toLowerCase() === value.toLowerCase()
-      )
-    ) {
-      updatePreference('foodsToAvoid', [...preferences.foodsToAvoid, value]);
+    const current = preferences[field];
+
+    if (!current.some((item) => item.toLowerCase() === trimmed.toLowerCase())) {
+      updatePreference(field, [...current, trimmed]);
     }
 
-    setAvoidInput('');
+    clearInput();
   };
 
-  const removeFoodToAvoid = (item: string) => {
+  const removeTag = (field: 'foodsToAvoid' | 'otherAllergies', item: string) => {
     updatePreference(
-      'foodsToAvoid',
-      preferences.foodsToAvoid.filter((food) => food !== item)
+      field,
+      preferences[field].filter((food) => food !== item)
     );
   };
 
-  const handleSave = () => {
-    localStorage.setItem(
-      'foodAnalyzerPreferences',
-      JSON.stringify(preferences)
-    );
+  const handleSave = async () => {
+    if (!userId) {
+      setError('You need to be signed in to save your personalization settings.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const { error: upsertError } = await supabase
+      .from('profiles')
+      .upsert(toProfileRow(userId, preferences), { onConflict: 'id' });
+
+    setSaving(false);
+
+    if (upsertError) {
+      setError('Something went wrong saving your preferences. Please try again.');
+      return;
+    }
 
     setSaved(true);
 
@@ -222,6 +300,14 @@ export default function Personalization() {
       setSaved(false);
     }, 3000);
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
@@ -250,6 +336,12 @@ export default function Personalization() {
             restrictions. We'll use these preferences to provide more
             personalized food recommendations.
           </p>
+
+          {error && (
+            <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+              {error}
+            </p>
+          )}
         </div>
 
         {/* Personal Information */}
@@ -572,15 +664,51 @@ export default function Personalization() {
               Other Allergies / Restrictions
             </label>
 
-            <input
-              type="text"
-              value={preferences.allergy}
-              onChange={(e) =>
-                updatePreference('allergy', e.target.value)
-              }
-              placeholder="Example: Soy, shellfish, sesame..."
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={allergyInput}
+                onChange={(e) => setAllergyInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTag('otherAllergies', allergyInput, () => setAllergyInput(''));
+                  }
+                }}
+                placeholder="Example: Soy, shellfish, sesame..."
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+              />
+
+              <button
+                type="button"
+                onClick={() => addTag('otherAllergies', allergyInput, () => setAllergyInput(''))}
+                className="shrink-0 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-purple-300"
+              >
+                Add
+              </button>
+            </div>
+
+            {preferences.otherAllergies.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {preferences.otherAllergies.map((item) => (
+                  <span
+                    key={item}
+                    className="flex items-center gap-1 rounded-full bg-purple-50 px-3 py-1 text-sm text-purple-700"
+                  >
+                    {item}
+
+                    <button
+                      type="button"
+                      onClick={() => removeTag('otherAllergies', item)}
+                      aria-label={`Remove ${item}`}
+                      className="ml-1 rounded-full p-0.5 hover:bg-purple-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="mt-5">
@@ -600,7 +728,7 @@ export default function Personalization() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    addFoodToAvoid();
+                    addTag('foodsToAvoid', avoidInput, () => setAvoidInput(''));
                   }
                 }}
                 placeholder="e.g. mushrooms"
@@ -609,7 +737,7 @@ export default function Personalization() {
 
               <button
                 type="button"
-                onClick={addFoodToAvoid}
+                onClick={() => addTag('foodsToAvoid', avoidInput, () => setAvoidInput(''))}
                 className="shrink-0 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-purple-300"
               >
                 Add
@@ -627,7 +755,7 @@ export default function Personalization() {
 
                     <button
                       type="button"
-                      onClick={() => removeFoodToAvoid(item)}
+                      onClick={() => removeTag('foodsToAvoid', item)}
                       aria-label={`Remove ${item}`}
                       className="ml-1 rounded-full p-0.5 hover:bg-purple-100"
                     >
@@ -645,9 +773,15 @@ export default function Personalization() {
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-purple-700"
+            disabled={saving}
+            className="flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saved ? (
+            {saving ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Saving...
+              </>
+            ) : saved ? (
               <>
                 <Check className="h-5 w-5" />
                 Preferences Saved
