@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Save,
   Check,
-  Globe,
   X,
   Loader2,
 } from 'lucide-react';
@@ -51,45 +50,16 @@ const restrictionOptions = [
   'No Added Sugar',
 ];
 
-const foodPreferenceOptions = [
-  'No Preference',
-  'North Indian',
-  'South Indian',
-  'Indo-Chinese',
-  'Continental',
-  'Italian',
-  'Mexican',
-  'Mediterranean',
-  'Thai',
-  'Street Food',
-];
-
-const languageOptions = [
-  'English',
-  'Hindi',
-  'Kannada',
-  'Tamil',
-  'Telugu',
-  'Malayalam',
-  'Marathi',
-  'Bengali',
-  'Gujarati',
-  'Punjabi',
-];
-
 interface Preferences {
   name: string;
   age: string;
   height: string;
   weight: string;
   activityLevel: string;
-  preferredLanguage: string;
-  countryRegion: string;
   diet: string;
   goals: string[];
   restrictions: string[];
   otherAllergies: string[];
-  foodPreferences: string[];
   foodsToAvoid: string[];
 }
 
@@ -99,13 +69,10 @@ const defaultPreferences: Preferences = {
   height: '',
   weight: '',
   activityLevel: 'Sedentary',
-  preferredLanguage: 'English',
-  countryRegion: '',
   diet: 'No Preference',
   goals: [],
   restrictions: ['No Restrictions'],
   otherAllergies: [],
-  foodPreferences: [],
   foodsToAvoid: [],
 };
 
@@ -117,15 +84,12 @@ function fromProfileRow(row: any): Preferences {
     height: row?.height_cm != null ? String(row.height_cm) : '',
     weight: row?.weight_kg != null ? String(row.weight_kg) : '',
     activityLevel: row?.activity_level ?? 'Sedentary',
-    preferredLanguage: row?.preferred_language ?? 'English',
-    countryRegion: row?.country_region ?? '',
     diet: row?.diet ?? 'No Preference',
     goals: Array.isArray(row?.health_goals) ? row.health_goals : [],
     restrictions: Array.isArray(row?.dietary_restrictions) && row.dietary_restrictions.length
       ? row.dietary_restrictions
       : ['No Restrictions'],
     otherAllergies: Array.isArray(row?.allergies) ? row.allergies : [],
-    foodPreferences: Array.isArray(row?.food_preferences) ? row.food_preferences : [],
     foodsToAvoid: Array.isArray(row?.foods_to_avoid) ? row.foods_to_avoid : [],
   };
 }
@@ -139,13 +103,10 @@ function toProfileRow(userId: string, prefs: Preferences) {
     height_cm: prefs.height ? Number(prefs.height) : null,
     weight_kg: prefs.weight ? Number(prefs.weight) : null,
     activity_level: prefs.activityLevel,
-    preferred_language: prefs.preferredLanguage,
-    country_region: prefs.countryRegion,
     diet: prefs.diet,
     health_goals: prefs.goals,
     dietary_restrictions: prefs.restrictions,
     allergies: prefs.otherAllergies,
-    food_preferences: prefs.foodPreferences,
     foods_to_avoid: prefs.foodsToAvoid,
   };
 }
@@ -222,16 +183,16 @@ export default function Personalization() {
 
   // Toggle a value inside a multi-select array field.
   const toggleMultiValue = (
-    field: 'goals' | 'restrictions' | 'foodPreferences',
+    field: 'goals' | 'restrictions',
     option: string
   ) => {
     setPreferences((prev) => {
       const current = prev[field];
 
-      // "No Restrictions" / "No Preference" behave as exclusive
-      // choices: picking them clears everything else, and picking
-      // anything else clears them.
-      const exclusiveValues = ['No Restrictions', 'No Preference'];
+      // "No Restrictions" behaves as an exclusive
+      // choice: picking it clears everything else, and picking
+      // anything else clears it.
+      const exclusiveValues = ['No Restrictions'];
 
       let next: string[];
 
@@ -430,42 +391,6 @@ export default function Personalization() {
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
               />
             </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Preferred Language
-              </label>
-
-              <select
-                value={preferences.preferredLanguage}
-                onChange={(e) =>
-                  updatePreference('preferredLanguage', e.target.value)
-                }
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-              >
-                {languageOptions.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Country/Region
-              </label>
-
-              <input
-                type="text"
-                value={preferences.countryRegion}
-                onChange={(e) =>
-                  updatePreference('countryRegion', e.target.value)
-                }
-                placeholder="e.g. Karnataka, India"
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-              />
-            </div>
           </div>
 
           <div className="mt-5">
@@ -533,46 +458,6 @@ export default function Personalization() {
                 {option}
 
                 {preferences.diet === option && (
-                  <Check className="float-right h-5 w-5" />
-                )}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Food Preferences (cuisine) */}
-        <section className="mb-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50">
-              <Globe className="h-5 w-5 text-purple-600" />
-            </div>
-
-            <div>
-              <h2 className="font-semibold text-slate-800">
-                Food Preferences
-              </h2>
-
-              <p className="text-sm text-slate-500">
-                Select the cuisines you enjoy most (choose any that apply)
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {foodPreferenceOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => toggleMultiValue('foodPreferences', option)}
-                className={`rounded-xl border p-4 text-left text-sm font-medium transition ${
-                  preferences.foodPreferences.includes(option)
-                    ? 'border-purple-500 bg-purple-50 text-purple-700'
-                    : 'border-slate-200 text-slate-700 hover:border-purple-300'
-                }`}
-              >
-                {option}
-
-                {preferences.foodPreferences.includes(option) && (
                   <Check className="float-right h-5 w-5" />
                 )}
               </button>
