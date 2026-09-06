@@ -1013,23 +1013,50 @@ export function analyzeProduct(
 function looksLikeIngredient(item: string): boolean {
   const letters = item.replace(/[^a-zA-Z]/g, '').length;
   if (letters === 0) return false;
-  if (letters / item.length < 0.6) return false;
- 
-  const isShort = item.length <= 5;
-  const upperRatio = item.replace(/[^A-Z]/g, '').length / letters;
-  if (!isShort && upperRatio > 0.8) return false;
- 
+
   if (/[»\\|~^_{}[\]#$%£@]/.test(item)) return false;
- 
+
+  if (letters / item.length < 0.4) return false;
+
   const words = item.split(/\s+/).filter(Boolean);
   const shortWordRatio =
     words.filter((w) => w.replace(/[^a-zA-Z]/g, '').length <= 2).length /
     words.length;
   if (words.length > 2 && shortWordRatio > 0.5) return false;
- 
+
   return true;
 }
- export function parseIngredients(raw: string): string[] {
+
+const SCIENTIFIC_TO_COMMON: Record<string, string> = {
+  'sodium chloride': 'Salt',
+  'ascorbic acid': 'Vitamin C',
+  'tocopherol': 'Vitamin E',
+  'tocopherols': 'Vitamin E',
+  'retinol': 'Vitamin A',
+  'thiamine': 'Vitamin B1',
+  'riboflavin': 'Vitamin B2',
+  'niacin': 'Vitamin B3',
+  'pyridoxine': 'Vitamin B6',
+  'cyanocobalamin': 'Vitamin B12',
+  'cholecalciferol': 'Vitamin D3',
+  'sodium bicarbonate': 'Baking Soda',
+  'sucrose': 'Sugar',
+  'dextrose': 'Glucose (Corn Sugar)',
+  'monosodium glutamate': 'MSG (Flavor Enhancer)',
+  'citric acid': 'Citric Acid (Sour/Preservative)',
+  'sodium benzoate': 'Sodium Benzoate (Preservative)',
+  'potassium sorbate': 'Potassium Sorbate (Preservative)',
+  'lecithin': 'Lecithin (Emulsifier)',
+  'xanthan gum': 'Xanthan Gum (Thickener)',
+  'maltodextrin': 'Maltodextrin (Starch/Filler)',
+};
+
+function toCommonName(item: string): string {
+  const key = item.toLowerCase().trim();
+  return SCIENTIFIC_TO_COMMON[key] ?? item;
+}
+
+export function parseIngredients(raw: string): string[] {
   if (!raw.trim()) {
     return [];
   }
@@ -1042,8 +1069,7 @@ function looksLikeIngredient(item: string): boolean {
     .map((item) => item.trim())
     .filter((item) => item.length > 1 && item.length < 100);
 
-  console.log('RAW CANDIDATES:', candidates);
-  console.log('AFTER FILTER:', candidates.filter(looksLikeIngredient));
-
-  return candidates.filter(looksLikeIngredient);
+  return candidates
+    .filter(looksLikeIngredient)
+    .map(toCommonName);
 }
