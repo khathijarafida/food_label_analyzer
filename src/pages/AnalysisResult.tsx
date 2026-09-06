@@ -120,18 +120,24 @@ export default function AnalysisResult() {
   const rating = healthRating(analysis.healthScore);
 
   const handleSave = async () => {
-    if (!profile) return;
-    setSaving(true);
-    const { error } = await supabase.from('scans').insert({
-      barcode: pendingScan.barcode, product_name: pendingScan.productName, brand: pendingScan.brand,
-      category: pendingScan.category, image_url: pendingScan.imageUrl, nutrition: pendingScan.nutrition,
-      ingredients: pendingScan.ingredients, allergens: pendingScan.allergens, additives: pendingScan.additives,
-      health_score: analysis.healthScore, food_grade: analysis.foodGrade,
-      ingredient_analysis: analysis.ingredientAnalysis, recommendations: analysis.recommendations,
-    });
-    setSaving(false);
-    if (!error) setSaved(true);
-  };
+  if (!profile) return;
+  setSaving(true);
+  const { error } = await supabase.from('scans').insert({
+    user_id: profile.id,
+    barcode: pendingScan.barcode, product_name: pendingScan.productName, brand: pendingScan.brand,
+    category: pendingScan.category, image_url: pendingScan.imageUrl, nutrition: pendingScan.nutrition,
+    ingredients: pendingScan.ingredients, allergens: pendingScan.allergens, additives: pendingScan.additives,
+    health_score: analysis.healthScore, food_grade: analysis.foodGrade,
+    ingredient_analysis: analysis.ingredientAnalysis, recommendations: analysis.recommendations,
+  });
+  setSaving(false);
+  if (!error) {
+    setSaved(true);
+  } else {
+    console.error('Save scan error:', error);
+    alert(`Could not save scan: ${error.message}`);
+  }
+};
 
   const handleDownload = () => generateReport(pendingScan);
 
