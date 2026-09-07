@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, Save, Download, GitCompareArrows, AlertTriangle,
-  ThumbsUp, ChevronDown, ChevronUp, Send, Bot, Sparkles, Cookie,
+  ThumbsUp, ChevronDown, ChevronUp, Sparkles, Cookie,
   Beef, Droplet, Flame, Wheat, Candy, Pill, User as UserIcon,
   CheckCircle2, Loader2, Star, Heart, Activity, TrendingUp, Lightbulb,
 } from 'lucide-react';
@@ -19,50 +19,6 @@ import {
   healthRating,
 } from '@/lib/colors';
 import type { AnalysisResult, NutritionFacts } from '@/lib/analysis';
-
-interface ChatMessage { role: 'user' | 'bot'; text: string }
-
-function generateBotReply(question: string, productName: string, analysis: AnalysisResult, nutrition: NutritionFacts): string {
-  const q = question.toLowerCase();
-  if (/sugar/.test(q)) {
-    const s = nutrition.sugar;
-    return s != null
-      ? `This product has ${s}g of sugar per serving. ${s > 15 ? 'That is quite high — regular consumption can spike blood sugar and contribute to weight gain.' : s > 5 ? 'Moderate sugar content. Fine in moderation.' : 'Low sugar, which is good.'}`
-      : 'Sugar data is not available for this product.';
-  }
-  if (/protein/.test(q)) {
-    const p = nutrition.protein;
-    return p != null
-      ? `This product has ${p}g of protein per serving. ${p > 10 ? 'Great protein content for muscle support.' : p > 5 ? 'Decent protein content.' : 'Low protein — look for richer sources if protein is your goal.'}`
-      : 'Protein data is not available for this product.';
-  }
-  if (/calorie|energy/.test(q)) {
-    const c = nutrition.calories;
-    return c != null
-      ? `This product has ${c} calories per serving. ${c > 400 ? 'That is calorie-dense — be mindful of portion sizes.' : c > 200 ? 'Moderate calories per serving.' : 'Low in calories per serving.'}`
-      : 'Calorie data is not available for this product.';
-  }
-  if (/sodium|salt/.test(q)) {
-    const s = nutrition.sodium;
-    return s != null
-      ? `This product has ${s}mg of sodium per serving. ${s > 400 ? 'High sodium — watch out if you have blood pressure concerns.' : 'Sodium is within a reasonable range.'}`
-      : 'Sodium data is not available for this product.';
-  }
-  if (/safe|healthy|good|bad|recommend/.test(q)) {
-    return `Based on my analysis, this product has a health score of ${analysis.healthScore}/100 (grade ${analysis.foodGrade}). ${analysis.warnings.length > 0 ? `Concerns: ${analysis.warnings[0]}` : 'No major concerns detected.'} ${analysis.positives.length > 0 ? `Positives: ${analysis.positives[0]}` : ''}`;
-  }
-  if (/ingredient/.test(q)) {
-    const harmful = analysis.ingredientAnalysis.filter((i) => i.classification === 'harmful');
-    if (harmful.length > 0) return `There are ${harmful.length} ingredient(s) flagged as harmful. For example: ${harmful[0].name} — ${harmful[0].reason}`;
-    return 'No harmful ingredients were detected. Most ingredients appear safe.';
-  }
-  if (/allerg/.test(q)) {
-    return analysis.allergens.length > 0
-      ? `This product contains these allergens: ${analysis.allergens.join(', ')}. Avoid if you are sensitive to any of them.`
-      : 'No common allergens were detected in the ingredient list.';
-  }
-  return `I can answer questions about ${productName}'s nutrition, ingredients, allergens, and whether it suits your health goals. Try asking about sugar, protein, calories, sodium, or ingredient safety.`;
-}
 
 function nutritionCard(
   label: string, value: number | undefined, unit: string, max: number,
@@ -107,9 +63,6 @@ export default function AnalysisResult() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [expandedIngredient, setExpandedIngredient] = useState<number | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
-  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     if (!pendingScan) navigate('/scan');
@@ -119,6 +72,7 @@ export default function AnalysisResult() {
   const { analysis } = pendingScan;
   const rating = healthRating(analysis.healthScore);
 
+  
   const handleSave = async () => {
   if (!profile) return;
   setSaving(true);
@@ -144,14 +98,6 @@ export default function AnalysisResult() {
   const handleCompare = () => {
     if (!compareLeft) { setCompareLeft(pendingScan); navigate('/compare'); }
     else { setCompareRight(pendingScan); navigate('/compare'); }
-  };
-
-  const sendChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-    const reply = generateBotReply(chatInput, pendingScan.productName, analysis, pendingScan.nutrition);
-    setChatMessages((m) => [...m, { role: 'user', text: chatInput }, { role: 'bot', text: reply }]);
-    setChatInput('');
   };
 
   const userGoals = profile?.health_goals ?? [];
@@ -192,7 +138,6 @@ export default function AnalysisResult() {
           </button>
           <button onClick={handleDownload} className="btn-ghost"><Download className="h-4 w-4" /> PDF Report</button>
           <button onClick={handleCompare} className="btn-ghost"><GitCompareArrows className="h-4 w-4" /> Compare</button>
-          <button onClick={() => setShowChat((s) => !s)} className="btn-ghost"><Bot className="h-4 w-4" /> Ask AI</button>
         </div>
       </motion.div>
 
@@ -269,29 +214,6 @@ export default function AnalysisResult() {
           )}
         </div>
       </motion.div>
-
-      {/* AI Chatbot */}
-      {showChat && (
-        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="card p-5">
-          <h3 className="font-display font-semibold text-lg text-slate-900 flex items-center gap-2 mb-3">
-            <Sparkles className="h-5 w-5 text-primary-500" /> Nutrition Assistant
-          </h3>
-          <div className="max-h-64 overflow-y-auto space-y-3 mb-3">
-            {chatMessages.length === 0 && <p className="text-sm text-slate-400 text-center py-4">Ask me anything about this product's nutrition or ingredients.</p>}
-            {chatMessages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${m.role === 'user' ? 'bg-primary-500 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                  {m.text}
-                </div>
-              </div>
-            ))}
-          </div>
-          <form onSubmit={sendChat} className="flex gap-2">
-            <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="input-field flex-1" placeholder="Ask about sugar, protein, ingredients…" />
-            <button type="submit" className="btn-primary"><Send className="h-4 w-4" /></button>
-          </form>
-        </motion.div>
-      )}
 
       {/* Warnings & Positives */}
       <div className="grid md:grid-cols-2 gap-4">
