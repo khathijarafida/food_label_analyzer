@@ -48,6 +48,14 @@ async function preprocessImage(imageDataUrl: string): Promise<string> {
   return canvas.toDataURL('image/png');
 }
 
+// --- Clean common OCR misreads before parsing ingredients ---
+function cleanOcrArtifacts(text: string): string {
+  return text
+    .replace(/-\n/g, '')          // rejoin hyphenated line breaks
+    .replace(/\n(?=[a-z])/g, ' ') // join lines that got broken mid-sentence
+    .replace(/[|]/g, 'I');        // common vertical-bar misread
+}
+
 function extractNumber(text: string, patterns: RegExp[]): number | undefined {
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -75,16 +83,27 @@ export async function runOCR(imageDataUrl: string): Promise<OCRResult> {
 
   const processedImage = await preprocessImage(imageDataUrl);
 
-  const worker = await createWorker('eng');
-  await worker.setParameters({
-    tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-    preserve_interword_spaces: '1',
-  });
+  let worker;
+  let rawText = '';
+  try {
+    worker = await createWorker('eng');
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+      preserve_interword_spaces: '1',
+    });
 
-  const result = await worker.recognize(processedImage);
-  await worker.terminate();
+    const result = await worker.recognize(processedImage);
+    rawText = result.data.text || '';
 
-  const rawText = result.data.text || '';
+    if (result.data.confidence < 40) {
+      console.warn('Low OCR confidence:', result.data.confidence);
+    }
+  } catch (err) {
+    console.error('OCR failed:', err);
+    throw new Error('Could not read the label. Try a clearer photo.');
+  } finally {
+    await worker?.terminate();
+  }
 
   const lower = rawText.toLowerCase();
   const nutrition: NutritionFacts = {};
@@ -119,10 +138,10 @@ export async function runOCR(imageDataUrl: string): Promise<OCRResult> {
   );
 
   if (ingMatch) {
-    ingredients = parseIngredients(ingMatch[1]);
+    ingredients = parseIngredients(cleanOcrArtifacts(ingMatch[1]));
   }
   if (ingredients.length === 0) {
-    ingredients = parseIngredients(rawText);
+    ingredients = parseIngredients(cleanOcrArtifacts(rawText));
   }
 
   return {
