@@ -7,6 +7,47 @@ export interface OCRResult {
   productName: string;
 }
 
+// --- Preprocessing: grayscale + contrast stretch + upscale ---
+async function preprocessImage(imageDataUrl: string): Promise<string> {
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = reject;
+    img.src = imageDataUrl;
+  });
+
+  // Upscale small images — Tesseract struggles below ~1000px on the long edge
+  const scale = img.width < 1000 ? 2 : 1;
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width * scale;
+  canvas.height = img.height * scale;
+  const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  // Grayscale + simple contrast stretch (histogram min/max)
+  let min = 255, max = 0;
+  const gray = new Uint8ClampedArray(data.length / 4);
+  for (let i = 0; i < data.length; i += 4) {
+    const g = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    gray[i / 4] = g;
+    if (g < min) min = g;
+    if (g > max) max = g;
+  }
+  const range = Math.max(max - min, 1);
+  for (let i = 0; i < data.length; i += 4) {
+    const stretched = ((gray[i / 4] - min) / range) * 255;
+    data[i] = data[i + 1] = data[i + 2] = stretched;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  return canvas.toDataURL('image/png');
+}
+
 function extractNumber(text: string, patterns: RegExp[]): number | undefined {
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -30,10 +71,19 @@ function extractProductName(text: string): string | undefined {
 }
 
 export async function runOCR(imageDataUrl: string): Promise<OCRResult> {
-  const { default: Tesseract } = await import('tesseract.js');
-  const result = await Tesseract.recognize(imageDataUrl, 'eng', {
-    logger: () => {},
+  const { createWorker, PSM } = await import('tesseract.js');
+
+  const processedImage = await preprocessImage(imageDataUrl);
+
+  const worker = await createWorker('eng');
+  await worker.setParameters({
+    tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+    preserve_interword_spaces: '1',
   });
+
+  const result = await worker.recognize(processedImage);
+  await worker.terminate();
+
   const rawText = result.data.text || '';
 
   const lower = rawText.toLowerCase();
